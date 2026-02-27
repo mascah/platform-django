@@ -1,0 +1,81 @@
+volumes:
+  platform_django_local_postgres_data: {}
+  platform_django_local_redis_data: {}
+
+services:
+  django: &django
+    build:
+      context: .
+      dockerfile: ./docker/local/django/Dockerfile
+    image: platform_django_local_django
+    container_name: platform_django_local_django
+    depends_on:
+      - postgres
+      - redis
+      - mailpit
+    volumes:
+      - .:/app:z
+    env_file:
+      - ./.env
+    ports:
+      - '8000:8000'
+    command: /start
+
+  tailwind_sidecar:
+    <<: *django
+    container_name: platform_django_local_tailwind
+    depends_on:
+      - django
+    env_file:
+      - ./.env
+    volumes:
+      - .:/app:z
+    command: python manage.py tailwind watch
+    tty: true
+
+  postgres:
+    image: docker.io/postgres:18
+    container_name: platform_django_local_postgres
+    volumes:
+      - platform_django_local_postgres_data:/var/lib/postgresql
+    env_file:
+      - ./.env
+
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    container_name: platform_django_local_mailpit
+    ports:
+      - "8025:8025"
+
+  redis:
+    image: docker.io/redis:7.2
+    container_name: platform_django_local_redis
+    volumes:
+      - platform_django_local_redis_data:/data
+
+  celeryworker:
+    <<: *django
+    container_name: platform_django_local_celeryworker
+    depends_on:
+      - redis
+      - postgres
+      - mailpit
+    ports: []
+    command: /start-celeryworker
+
+  celerybeat:
+    <<: *django
+    container_name: platform_django_local_celerybeat
+    depends_on:
+      - redis
+      - postgres
+      - mailpit
+    ports: []
+    command: /start-celerybeat
+
+  flower:
+    <<: *django
+    container_name: platform_django_local_flower
+    ports:
+      - '5555:5555'
+    command: /start-flower
