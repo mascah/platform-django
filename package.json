@@ -18,8 +18,8 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@playwright/cli": "^0.1.1",
     "@turbo/gen": "^2.6.1",
-    "lefthook": "^1.10.10",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/prettier-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
