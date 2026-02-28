@@ -33,4 +33,5 @@ class TestUserViewSet:
             "url": f"http://testserver/api/users/{user.username}/",
             "name": user.name,
             "email": user.email,
+            "id": user.id,
         }
