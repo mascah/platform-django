@@ -43,7 +43,7 @@ function ColorPicker({ value, onChange, className }: ColorPickerProps) {
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
         <div
-          className="border-input h-6 w-6 rounded-md border"
+          className="h-6 w-6 rounded-md border border-input"
           style={{ backgroundColor: value }}
         />
       </div>

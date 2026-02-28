@@ -18,9 +18,9 @@ export function AppLayout() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="bg-background min-h-screen">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur">
+      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center">
           <div className="mr-4 flex">
             <Link to="/" className="flex items-center space-x-2">
@@ -30,7 +30,7 @@ export function AppLayout() {
           <nav className="flex flex-1 items-center space-x-4 text-sm font-medium">
             <Link
               to="/"
-              className="text-muted-foreground hover:text-foreground flex items-center transition-colors"
+              className="flex items-center text-muted-foreground transition-colors hover:text-foreground"
             >
               <Home className="mr-2 h-4 w-4" />
               Dashboard
@@ -42,8 +42,8 @@ export function AppLayout() {
               size="icon"
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <Sun className="h-4 w-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+              <Moon className="absolute h-4 w-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
               <span className="sr-only">Toggle theme</span>
             </Button>
             <DropdownMenu>

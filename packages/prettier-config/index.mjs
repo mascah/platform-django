@@ -1,3 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @typedef  {import("prettier").Config} PrettierConfig */
 
 /** @type { PrettierConfig } */
@@ -19,7 +24,7 @@ const config = {
     '^[./]', // relative imports
   ],
   tailwindFunctions: ['tw', 'clsx', 'cn', 'cva'],
-  tailwindStylesheet: './packages/ui/src/styles/globals.css',
+  tailwindStylesheet: path.resolve(__dirname, '../ui/src/styles/globals.css'),
   importOrderSeparation: true,
   importOrderSortSpecifiers: true,
   plugins: ['@trivago/prettier-plugin-sort-imports', 'prettier-plugin-tailwindcss'],

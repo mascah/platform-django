@@ -25,7 +25,7 @@ export function DashboardPage() {
             <CardDescription>Your next steps</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Start building your application by adding features and components.
             </p>
           </CardContent>
@@ -37,7 +37,7 @@ export function DashboardPage() {
             <CardDescription>Learn the basics</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               Check out the documentation to learn more about the stack.
             </p>
           </CardContent>
@@ -49,7 +49,7 @@ export function DashboardPage() {
             <CardDescription>Backend integration</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-muted-foreground text-sm">
+            <p className="text-sm text-muted-foreground">
               The OpenAPI TypeScript client is ready for your API endpoints.
             </p>
           </CardContent>
