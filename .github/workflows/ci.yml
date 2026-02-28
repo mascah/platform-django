@@ -1,16 +1,7 @@
 name: CI
 
-# Enable Buildkit and let compose use it to speed up image building
-env:
-  DOCKER_BUILDKIT: 1
-  COMPOSE_DOCKER_CLI_BUILD: 1
-
 on:
   pull_request:
-    branches: ['main']
-    paths-ignore: ['docs/**']
-
-  push:
     branches: ['main']
     paths-ignore: ['docs/**']
 
@@ -19,97 +10,272 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  linter:
+  # ---------------------------------------------------------------------------
+  # Detect which areas of the codebase changed so downstream jobs can be skipped.
+  # ---------------------------------------------------------------------------
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      typescript: ${{ steps.filter.outputs.typescript }}
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Detect changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
         with:
-          python-version-file: '.python-version'
+          filters: |
+            python:
+              - 'platform_django/**'
+              - 'libs/**'
+              - 'config/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.python-version'
+              - 'docker/**'
+              - 'docker-compose.yml'
+              - '.env.ci'
+              - 'manage.py'
+              - '.importlinter'
+              - 'lefthook.yml'
+              - '.github/**'
+            typescript:
+              - 'apps/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
+              - 'e2e/**'
+              - 'lefthook.yml'
+              - '.github/**'
+
+  # ---------------------------------------------------------------------------
+  # Linter — runs all checks via lefthook (single source of truth).
+  # ---------------------------------------------------------------------------
+  lint:
+    needs: changes
+    if: >-
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup CI environment
+        run: |
+          cp .env.ci .env
+          # Export env vars for tools that run outside Django (e.g., mypy)
+          grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Setup Node.js environment
+        uses: ./.github/actions/setup-node-env
 
       - name: Install lefthook
         run: |
-          curl -1sLf 'https://dl.cloudsmith.io/public/evilmartians/lefthook/setup.deb.sh' | sudo -E bash
-          sudo apt-get install lefthook
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            aarch64) SUFFIX="arm64" ;;
+            *)       SUFFIX="amd64" ;;
+          esac
+          wget -q "https://github.com/evilmartians/lefthook/releases/download/v2.0.12/lefthook_2.0.12_linux_${SUFFIX}" -O /tmp/lefthook
+          chmod +x /tmp/lefthook
+          sudo mv /tmp/lefthook /usr/local/bin/lefthook
 
-      - name: Run lefthook
-        run: lefthook run pre-commit
+      - name: Run lefthook CI checks
+        run: |
+          lefthook run pre-commit --all-files
+          # Fail if any files were modified by auto-fixers (excluding lock files)
+          git diff --exit-code -- ':!uv.lock' ':!pnpm-lock.yaml' ':!CHANGELOG.md' || (echo "Files were modified by linters. Please run 'lefthook run pre-commit --all-files' locally and commit the changes." && exit 1)
 
-  # With no caching at all the entire ci process takes 3m to complete!
+  # ---------------------------------------------------------------------------
+  # Test & build jobs — only run when relevant files change
+  # ---------------------------------------------------------------------------
   pytest:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      pull-requests: write
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: platform_django
+          POSTGRES_USER: platform_django
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7.2
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v6
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-env
 
-      - name: Build and cache local backend
-        uses: docker/bake-action@v6
-        with:
-          push: false
-          load: true
-          files: docker-compose.local.yml
-          targets: django
-          set: |
-            django.cache-from=type=gha,scope=django-cached-tests
-            django.cache-to=type=gha,scope=django-cached-tests,mode=max
-            postgres.cache-from=type=gha,scope=postgres-cached-tests
-            postgres.cache-to=type=gha,scope=postgres-cached-tests,mode=max
-
-      - name: Build and cache docs
-        uses: docker/bake-action@v6
-        with:
-          push: false
-          load: true
-          files: docker-compose.docs.yml
-          set: |
-            docs.cache-from=type=gha,scope=cached-docs
-            docs.cache-to=type=gha,scope=cached-docs,mode=max
+      - name: Setup CI environment
+        run: |
+          cp .env.ci .env
+          # Export env vars so Django can read them (no Docker entrypoint to do this)
+          grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
 
       - name: Check DB Migrations
-        run: docker compose -f docker-compose.local.yml run --rm django python manage.py makemigrations --check
+        run: uv run python manage.py makemigrations --check
 
       - name: Run DB Migrations
-        run: docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
+        run: uv run python manage.py migrate
 
-      - name: Run Django Tests
-        run: docker compose -f docker-compose.local.yml run django pytest
+      - name: Run Django Tests with Coverage
+        run: uv run pytest --cov --cov-report=xml --cov-report=term-missing
 
-      - name: Tear down the Stack
-        run: docker compose -f docker-compose.local.yml down
-
-  frontend:
+  vitest:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.12.4
+      - name: Setup Node.js environment
+        uses: ./.github/actions/setup-node-env
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
+      - name: Run vitest
+        run: pnpm test
 
-      - name: Install dependencies
-        run: pnpm install
+  # ---------------------------------------------------------------------------
+  # E2E tests — runs Playwright against Django + built frontend.
+  # Uses service containers (no Docker build) — Django runs natively on the
+  # GHA runner with the built frontend accessible on the local filesystem.
+  # ---------------------------------------------------------------------------
+  e2e:
+    needs: changes
+    if: >-
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: platform_django
+          POSTGRES_USER: platform_django
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7.2
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v6
 
-      - name: Type check
-        run: pnpm typecheck
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-env
 
-      - name: Lint
-        run: pnpm lint
+      - name: Setup Node.js environment
+        uses: ./.github/actions/setup-node-env
 
-      - name: Build
+      - name: Build frontend
         run: pnpm build
+
+      - name: Setup CI environment
+        run: |
+          cp .env.ci .env
+          grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
+
+      - name: Run DB Migrations
+        run: uv run python manage.py migrate
+
+      - name: Collect static files
+        run: uv run python manage.py collectstatic --noinput
+
+      - name: Create E2E test user
+        run: uv run python manage.py create_e2e_user
+
+      - name: Start Django server
+        run: |
+          uv run gunicorn config.wsgi --bind 0.0.0.0:8000 --no-control-socket --preload --access-logfile - --error-logfile - > django-e2e.log 2>&1 &
+          timeout 30 bash -c 'until curl -s http://localhost:8000/healthz/ > /dev/null 2>&1; do sleep 1; done'
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.local
+
+      - name: Install Playwright browsers
+        run: cd e2e && pnpm exec playwright install --only-shell --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+        env:
+          CI: true
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Upload Django server logs
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: django-e2e-logs
+          path: django-e2e.log
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Fan-in job — use as the single required status check in branch protection.
+  # Passes when all conditional jobs either succeed or are skipped.
+  # ---------------------------------------------------------------------------
+  ci-success:
+    if: always()
+    needs: [changes, lint, pytest, vitest, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          results=(
+            "${{ needs.lint.result }}"
+            "${{ needs.pytest.result }}"
+            "${{ needs.vitest.result }}"
+            "${{ needs.e2e.result }}"
+          )
+          for r in "${results[@]}"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "Job failed or was cancelled: $r"
+              exit 1
+            fi
+          done
+          echo "All jobs passed or were skipped"

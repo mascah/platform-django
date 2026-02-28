@@ -4,6 +4,10 @@
 # Usage: . bin/worktree-remove
 # or: source bin/worktree-remove
 
+# Project-specific port configuration (must match worktree-new)
+PROJECT_NAME="platform-django"
+REGISTRY_FILE="${HOME}/.${PROJECT_NAME}-worktree-ports.json"
+
 # Get current directory info
 CURRENT_DIR="$(pwd)"
 CURRENT_DIR_NAME="$(basename "${CURRENT_DIR}")"
@@ -83,6 +87,32 @@ if ! git worktree remove "../${CURRENT_DIR_NAME}"; then
 fi
 
 echo "Worktree removed"
+
+# Release port allocation from registry
+if [[ -f "${REGISTRY_FILE}" ]]; then
+  if command -v jq &>/dev/null; then
+    echo ""
+    echo "Releasing port allocation..."
+    # Find and display which port was freed
+    FREED_PORT=$(jq -r --arg path "${CURRENT_DIR}" \
+      '.allocations | to_entries[] | select(.value.worktree_path == $path) | .key' \
+      "${REGISTRY_FILE}" 2>/dev/null)
+
+    if [[ -n "${FREED_PORT}" ]]; then
+      # Remove the allocation
+      jq --arg path "${CURRENT_DIR}" \
+         '.allocations |= with_entries(select(.value.worktree_path != $path))' \
+         "${REGISTRY_FILE}" > "${REGISTRY_FILE}.tmp" && mv "${REGISTRY_FILE}.tmp" "${REGISTRY_FILE}"
+      echo "Port ${FREED_PORT} released and available for reuse"
+    else
+      echo "No port allocation found for this worktree"
+    fi
+  else
+    echo ""
+    echo "Warning: jq not installed, port allocation not released"
+    echo "Run 'bin/worktree-ports cleanup' manually to free the port"
+  fi
+fi
 
 # Return to previous directory
 echo ""

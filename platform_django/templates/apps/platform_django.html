@@ -1,0 +1,24 @@
+{% load static %}
+{% load django_vite %}
+{% load vite_csp %}
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      {% block title %}
+        Platform Django
+      {% endblock title %}
+    </title>
+    <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
+    {% csrf_token %}
+    {% vite_hmr_client app='platform_django' %}
+    {% vite_react_refresh_csp app='platform_django' %}
+    {% vite_asset 'main.tsx' app='platform_django' %}
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

@@ -1,0 +1,33 @@
+[importlinter]
+root_packages =
+    platform_django
+include_external_packages = True
+
+# =============================================================================
+# Contract 1: Infrastructure cannot import business modules
+# =============================================================================
+# core and domain_events are the lowest-level modules. They must not import
+# from any business domain modules.
+[importlinter:contract:infrastructure-isolation]
+name = Infrastructure cannot import business modules
+type = forbidden
+source_modules =
+    platform_django.core
+    platform_django.domain_events
+forbidden_modules =
+    platform_django.users
+
+# =============================================================================
+# Contract 2: Users module internal layers (api -> services/selectors -> models)
+# =============================================================================
+[importlinter:contract:users-internal-layers]
+name = Users module internal layers
+type = layers
+layers =
+    api
+    tasks
+    services
+    selectors
+    models
+containers =
+    platform_django.users

@@ -1,110 +1,52 @@
 # Platform Django
 
-This is the way.
+A project template for building web applications with Django + Turborepo React.
 
-[![Built with Platform Django](https://img.shields.io/badge/built%20with-Platform%20Django-ff69b4.svg)](https://github.com/mascah/platform-django-template/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-## Settings
+## Tech Stack
 
-Moved to [settings](https://platform-django-template.readthedocs.io/en/latest/1-getting-started/settings.html).
+- **Backend**: Django 5, Django REST Framework, Celery, PostgreSQL, Redis
+- **Frontend**: React 19, Vite, Turborepo, Tailwind CSS, shadcn/ui
+- **Tooling**: uv, pnpm, Lefthook, Ruff, ESLint, Prettier, mypy
 
-## Basic Commands
-
-### Setting Up Your Users
-
-- To create a **normal user account**, just go to Sign Up and fill out the form. Once you submit it, you'll see a "Verify Your E-mail Address" page. Go to your console to see a simulated email verification message. Copy the link into your browser. Now the user's email should be verified and ready to go.
-
-- To create a **superuser account**, use this command:
-
-      docker compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
-
-For convenience, you can keep your normal user logged in on Chrome and your superuser logged in on Firefox (or similar), so that you can see how the site behaves for both kinds of users.
-
-### Type checks
-
-Running type checks with mypy:
-
-    docker compose -f docker-compose.local.yml run --rm django mypy platform_django
-
-### Test coverage
-
-To run the tests, check your test coverage, and generate an HTML coverage report:
-
-    docker compose -f docker-compose.local.yml run --rm django coverage run -m pytest
-    docker compose -f docker-compose.local.yml run --rm django coverage html
-    open htmlcov/index.html
-
-#### Running tests with pytest
-
-    docker compose -f docker-compose.local.yml run --rm django pytest
-
-### Frontend Development
-
-This project uses Turborepo with pnpm for frontend development.
-
-#### Install dependencies
-
-    pnpm install
-
-#### Development server
-
-    pnpm dev
-
-#### Build for production
-
-    pnpm build
-
-#### Type check
-
-    pnpm typecheck
-
-#### Lint
-
-    pnpm lint
-
-### Celery
-
-This app comes with Celery.
-
-To run a celery worker:
+## Quick Start
 
 ```bash
-docker compose -f docker-compose.local.yml up celeryworker
+# 1. Run the setup script (installs tools, dependencies, generates .env)
+just setup
+
+# 2. Start the Docker stack (Django, Postgres, Redis, Celery, Mailpit)
+just up
+
+# 3. Run database migrations
+just manage migrate
+
+# 4. Start the Vite dev server (runs on host)
+pnpm dev
 ```
 
-Please note: For Celery's import magic to work, it is important _where_ the celery commands are run. If you are in the same folder with _manage.py_, you should be right.
-
-To run [periodic tasks](https://docs.celeryq.dev/en/stable/userguide/periodic-tasks.html), you'll need to start the celery beat scheduler service:
+## Development
 
 ```bash
-docker compose -f docker-compose.local.yml up celerybeat
+just up              # Start Docker stack
+just down            # Stop Docker stack
+just logs            # View container logs
+just manage <cmd>    # Run manage.py in container
+just shell           # Open shell in Django container
+pnpm dev             # Run Vite dev servers
 ```
 
-### Email Server
+## Testing
 
-In development, it is often nice to be able to see emails that are being sent from your application. For that reason local SMTP server [Mailpit](https://github.com/axllent/mailpit) with a web interface is available as docker container.
+```bash
+pytest                  # Run Django tests
+pnpm test               # Run frontend tests
+pnpm test:e2e           # Run Playwright E2E tests
+just coverage           # Run tests with coverage report
+just libs-test          # Run tests for libs/ packages
+```
 
-Container mailpit will start automatically when you will run all docker containers.
-Please check [Platform Django Docker documentation](https://platform-django-template.readthedocs.io/en/latest/2-local-development/developing-locally-docker.html) for more details how to start all containers.
+## Architecture
 
-With Mailpit running, to view messages that are sent by your application, open your browser and go to `http://127.0.0.1:8025`
-
-### Sentry
-
-Sentry is an error logging aggregator service. You can sign up for a free account at <https://sentry.io/signup/?code=cookiecutter> or download and host it yourself.
-The system is set up with reasonable defaults, including 404 logging and integration with the WSGI application.
-
-You must set the DSN url in production.
-
-## Deployment
-
-The following details how to deploy this application.
-
-### Heroku
-
-See detailed [Platform Django Heroku documentation](https://platform-django-template.readthedocs.io/en/latest/3-deployment/deployment-on-heroku.html).
-
-### Docker
-
-See detailed [Platform Django Docker documentation](https://platform-django-template.readthedocs.io/en/latest/3-deployment/deployment-with-docker.html).
+See [CLAUDE.md](CLAUDE.md) for detailed architecture rules, module boundaries, and conventions.

@@ -7,8 +7,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/local/django/Dockerfile
-    image: platform_django_local_django
-    container_name: platform_django_local_django
+    image: platform_django_${WORKTREE_ID:-main}_django
+    container_name: platform_django_${WORKTREE_ID:-main}_django
     depends_on:
       - postgres
       - redis
@@ -17,45 +17,39 @@ services:
       - .:/app:z
     env_file:
       - ./.env
+    environment:
+      - VITE_PLATFORM_DJANGO_PORT=${VITE_PLATFORM_DJANGO_PORT:-5173}
     ports:
-      - '8000:8000'
+      - '${DOCKER_HOST_DJANGO_PORT:-8000}:8000'
     command: /start
-
-  tailwind_sidecar:
-    <<: *django
-    container_name: platform_django_local_tailwind
-    depends_on:
-      - django
-    env_file:
-      - ./.env
-    volumes:
-      - .:/app:z
-    command: python manage.py tailwind watch
-    tty: true
 
   postgres:
     image: docker.io/postgres:18
-    container_name: platform_django_local_postgres
+    container_name: platform_django_${WORKTREE_ID:-main}_postgres
     volumes:
       - platform_django_local_postgres_data:/var/lib/postgresql
+    ports:
+      - '${DOCKER_HOST_POSTGRES_PORT:-5432}:5432'
     env_file:
       - ./.env
 
   mailpit:
     image: docker.io/axllent/mailpit:latest
-    container_name: platform_django_local_mailpit
+    container_name: platform_django_${WORKTREE_ID:-main}_mailpit
     ports:
-      - "8025:8025"
+      - '${DOCKER_HOST_MAILPIT_PORT:-8025}:8025'
 
   redis:
     image: docker.io/redis:7.2
-    container_name: platform_django_local_redis
+    container_name: platform_django_${WORKTREE_ID:-main}_redis
     volumes:
       - platform_django_local_redis_data:/data
+    ports:
+      - '${DOCKER_HOST_REDIS_PORT:-6379}:6379'
 
   celeryworker:
     <<: *django
-    container_name: platform_django_local_celeryworker
+    container_name: platform_django_${WORKTREE_ID:-main}_celeryworker
     depends_on:
       - redis
       - postgres
@@ -65,7 +59,7 @@ services:
 
   celerybeat:
     <<: *django
-    container_name: platform_django_local_celerybeat
+    container_name: platform_django_${WORKTREE_ID:-main}_celerybeat
     depends_on:
       - redis
       - postgres
@@ -75,7 +69,7 @@ services:
 
   flower:
     <<: *django
-    container_name: platform_django_local_flower
+    container_name: platform_django_${WORKTREE_ID:-main}_flower
     ports:
-      - '5555:5555'
+      - '${DOCKER_HOST_FLOWER_PORT:-5555}:5555'
     command: /start-flower

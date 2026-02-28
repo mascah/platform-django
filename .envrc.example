@@ -1,0 +1,17 @@
+# =============================================================================
+# direnv configuration
+# =============================================================================
+# This file is automatically loaded when you cd into the project directory.
+# Run `direnv allow` after copying to .envrc
+# =============================================================================
+
+# Load .env files
+dotenv
+dotenv_if_exists .env.local
+
+# Vite port needs default for main worktree without .env.local
+export VITE_PLATFORM_DJANGO_PORT=${VITE_PLATFORM_DJANGO_PORT:-5173}
+
+# Database and Redis URLs for host-based commands (pytest, manage.py, etc.)
+export DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${DOCKER_HOST_POSTGRES_PORT:-5432}/${POSTGRES_DB}
+export REDIS_URL=redis://localhost:${DOCKER_HOST_REDIS_PORT:-6379}/0

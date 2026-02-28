@@ -6,7 +6,7 @@ from platform_django.users.models import User
 class UserSerializer(serializers.ModelSerializer[User]):
     class Meta:
         model = User
-        fields = ["username", "name", "url"]
+        fields = ["username", "name", "url", "email", "id"]
 
         extra_kwargs = {
             "url": {"view_name": "api:user-detail", "lookup_field": "username"},

@@ -11,8 +11,11 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "prepare": "lefthook install || true"
+    "test": "turbo test --filter=!e2e",
+    "test:e2e": "pnpm --filter e2e test",
+    "test:e2e:ui": "pnpm --filter e2e test:ui",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@turbo/gen": "^2.6.1",

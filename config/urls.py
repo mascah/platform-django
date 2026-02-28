@@ -1,16 +1,55 @@
+from pathlib import Path
+
+from csp.decorators import csp_exempt
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
+from django.http import FileResponse
+from django.http import Http404
+from django.http import HttpResponse
 from django.urls import include
 from django.urls import path
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
 from drf_spectacular.views import SpectacularSwaggerView
-from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.permissions import AllowAny
+
+
+def healthz(request):
+    """Health check endpoint for load balancer."""
+    return HttpResponse("ok", content_type="text/plain")
+
+
+def serve_landing_page(request):
+    """Serve pre-rendered Astro landing page."""
+    if settings.DEBUG:
+        # In development, read from the Astro build output directly
+        html_path = Path(settings.BASE_DIR) / "apps/landing/dist/index.html"
+    else:
+        # In production, read from STATIC_ROOT (populated by collectstatic)
+        html_path = Path(settings.STATIC_ROOT) / "index.html"
+
+    if html_path.exists():
+        return FileResponse(html_path.open("rb"), content_type="text/html")
+    msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
+    raise Http404(msg)
+
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("healthz/", healthz, name="healthz"),
+    path("", serve_landing_page, name="home"),
+    path(
+        "app/",
+        login_required(TemplateView.as_view(template_name="apps/platform_django.html")),
+        name="app",
+    ),
+    path(
+        "app/<path:path>",
+        login_required(TemplateView.as_view(template_name="apps/platform_django.html")),
+        name="app-catchall",
+    ),
     path(
         "about/",
         TemplateView.as_view(template_name="pages/about.html"),
@@ -21,8 +60,6 @@ urlpatterns = [
     # User management
     path("users/", include("platform_django.users.urls", namespace="users")),
     path("accounts/", include("allauth.urls")),
-    # Your stuff: custom urls includes go here
-    # ...
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]
@@ -31,15 +68,39 @@ urlpatterns = [
 urlpatterns += [
     # API base url
     path("api/", include("config.api_router")),
-    # DRF auth token
-    path("api/auth-token/", obtain_auth_token, name="obtain_auth_token"),
-    path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
-    path(
-        "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="api-schema"),
-        name="api-docs",
-    ),
 ]
+
+if settings.DEBUG:
+    # Allow unauthenticated access to the API schema for openapi client generation
+    urlpatterns += [
+        path(
+            "api/schema/",
+            csp_exempt()(SpectacularAPIView.as_view(permission_classes=[AllowAny])),
+            name="api-schema",
+        ),
+        path(
+            "api/docs/",
+            csp_exempt()(
+                SpectacularSwaggerView.as_view(
+                    url_name="api-schema", permission_classes=[AllowAny]
+                )
+            ),
+            name="api-docs",
+        ),
+    ]
+else:
+    urlpatterns += [
+        path(
+            "api/schema/",
+            csp_exempt()(SpectacularAPIView.as_view()),
+            name="api-schema",
+        ),
+        path(
+            "api/docs/",
+            csp_exempt()(SpectacularSwaggerView.as_view(url_name="api-schema")),
+            name="api-docs",
+        ),
+    ]
 
 if settings.DEBUG:
     # This allows the error pages to be debugged during development, just visit

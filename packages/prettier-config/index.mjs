@@ -22,10 +22,7 @@ const config = {
   tailwindStylesheet: './packages/ui/src/styles/globals.css',
   importOrderSeparation: true,
   importOrderSortSpecifiers: true,
-  plugins: [
-    '@trivago/prettier-plugin-sort-imports',
-    'prettier-plugin-tailwindcss',
-  ],
+  plugins: ['@trivago/prettier-plugin-sort-imports', 'prettier-plugin-tailwindcss'],
 };
 
 export default config;

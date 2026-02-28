@@ -215,10 +215,7 @@ The generators use Handlebars templates with the following variables:
 Templates use Handlebars syntax:
 
 ```handlebars
-{
-  "name": "{{ kebabCase name }}",
-  "version": "0.0.0"
-}
+{ "name": "{{kebabCase name}}", "version": "0.0.0" }
 ```
 
 Conditionals:

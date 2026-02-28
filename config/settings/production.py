@@ -7,12 +7,12 @@ from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 
-from .base import *  # noqa: F403
-from .base import DATABASES
-from .base import INSTALLED_APPS
-from .base import REDIS_URL
-from .base import SPECTACULAR_SETTINGS
-from .base import env
+from config.settings.base import *  # noqa: F403
+from config.settings.base import DATABASES
+from config.settings.base import INSTALLED_APPS
+from config.settings.base import REDIS_URL
+from config.settings.base import SPECTACULAR_SETTINGS
+from config.settings.base import env
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -46,6 +46,8 @@ CACHES = {
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-ssl-redirect
 SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
+# https://docs.djangoproject.com/en/dev/ref/settings/#secure-redirect-exempt
+SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-secure
 SESSION_COOKIE_SECURE = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-name
@@ -181,7 +183,7 @@ sentry_sdk.init(
 # -------------------------------------------------------------------------------
 # Tools that generate code samples can use SERVERS to point to the correct domain
 SPECTACULAR_SETTINGS["SERVERS"] = [
-    {"url": "https://example.com", "description": "Production server"},
+    {"url": "https://example.com", "description": "Production server"},  # type: ignore[list-item]
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------

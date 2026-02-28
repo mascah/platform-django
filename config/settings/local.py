@@ -1,3 +1,5 @@
+from csp.constants import NONCE
+
 from .base import *  # noqa: F403
 from .base import DJANGO_VITE
 from .base import INSTALLED_APPS
@@ -71,8 +73,44 @@ INSTALLED_APPS += ["django_extensions"]
 # ------------------------------------------------------------------------------
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 CELERY_TASK_EAGER_PROPAGATES = True
-# Your stuff...
+
+# django-vite
 # ------------------------------------------------------------------------------
-DJANGO_VITE["platform_django"]["dev_mode"] = DEBUG
+# Enable dev_mode for all Vite apps (can be disabled in CI while keeping DEBUG=True)
+DJANGO_VITE_DEV_MODE = env.bool("DJANGO_VITE_DEV_MODE", DEBUG)
+for app_name in DJANGO_VITE:
+    DJANGO_VITE[app_name]["dev_mode"] = DJANGO_VITE_DEV_MODE
+
+# Content Security Policy - relaxed for development with Vite HMR
+# Dynamically allows all Vite dev servers configured in DJANGO_VITE
+_vite_dev_servers = []
+_vite_ws_servers = []
+for app_config in DJANGO_VITE.values():
+    port = app_config.get("dev_server_port", 5173)
+    _vite_dev_servers.append(f"http://localhost:{port}")
+    _vite_ws_servers.append(f"ws://localhost:{port}")
+
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ("'none'",),
+        "script-src": (
+            "'self'",
+            NONCE,
+            *_vite_dev_servers,
+        ),
+        "style-src": ("'self'", "'unsafe-inline'"),
+        "img-src": ("'self'", "data:"),
+        "font-src": ("'self'",),
+        "connect-src": (
+            "'self'",
+            *_vite_dev_servers,
+            *_vite_ws_servers,
+        ),
+        "frame-ancestors": ("'none'",),
+        "form-action": ("'self'",),
+        "base-uri": ("'self'",),
+        "object-src": ("'none'",),
+    },
+}
 
 ACCOUNT_EMAIL_VERIFICATION = "optional"

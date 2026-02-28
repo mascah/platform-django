@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+*.min.js
+
+# Generated files
+**/migrations/
+CHANGELOG.md
+pnpm-lock.yaml
+
+# Turbo generator templates (handlebars)
+turbo/generators/templates/
+
+# Django templates (use djlint instead)
+platform_django/templates/
+
+# Documentation (built separately)
+docs/
+
+# IDE/Editor
+.vscode/
+.idea/
+
+# Local settings
+.claude/
+
+# Temp files from parallel lefthook commands
+sed*
+
+apps/platform_django/src/services/*

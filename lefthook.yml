@@ -1,26 +1,48 @@
 # lefthook.yml
 # Parallel execution enabled for faster hook runs
 
+glob_matcher: doublestar
+
+# === Post-merge: sync dependencies after pull/merge ===
+post-merge:
+  parallel: true
+  commands:
+    uv-sync:
+      run: uv sync
+    pnpm-install:
+      run: pnpm install
+    env-check:
+      run: |
+        CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)
+        if echo "$CHANGED_FILES" | grep -qE '^\.(env|envrc)\.example$'; then
+          printf "\n\033[1;33m⚠  Environment templates changed!\033[0m\n"
+          printf "   Run \033[1mbin/env-refresh\033[0m to update your .env and .envrc\n\n"
+        fi
+
 pre-commit:
   parallel: true
   commands:
     # === File validation ===
     trailing-whitespace:
-      glob: "*.{py,ts,tsx,js,jsx,json,yaml,yml,toml,md,html,css}"
-      exclude: "^docs/|/migrations/|devcontainer.json"
+      glob: '**/*.{py,ts,tsx,js,jsx,json,yaml,yml,toml,md,html,css}'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
       run: |
         for file in {staged_files}; do
-          if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' 's/[[:space:]]*$//' "$file"
-          else
-            sed -i 's/[[:space:]]*$//' "$file"
-          fi
+          case "$(uname)" in
+            Darwin) sed -i '' 's/[[:space:]]*$//' "$file" ;;
+            *) sed -i 's/[[:space:]]*$//' "$file" ;;
+          esac
         done
       stage_fixed: true
 
     end-of-file-fixer:
-      glob: "*.{py,ts,tsx,js,jsx,json,yaml,yml,toml,md,html,css}"
-      exclude: "^docs/|/migrations/|devcontainer.json"
+      glob: '**/*.{py,ts,tsx,js,jsx,json,yaml,yml,toml,md,html,css}'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
+        - '**/devcontainer.json'
       run: |
         for file in {staged_files}; do
           if [ -f "$file" ] && [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then
@@ -30,84 +52,116 @@ pre-commit:
       stage_fixed: true
 
     check-json:
-      glob: "*.json"
-      exclude: "^docs/|/migrations/|devcontainer.json|\\.vscode/settings\\.json"
+      glob: '**/*.json'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
+        - '.vscode/**'
       run: python3 -c "import json, sys; [json.load(open(f)) for f in sys.argv[1:]]" {staged_files}
 
     check-toml:
-      glob: "*.toml"
-      exclude: "^docs/|/migrations/"
+      glob: '**/*.toml'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
       run: python3 -c "import tomllib, sys; [tomllib.load(open(f,'rb')) for f in sys.argv[1:]]" {staged_files}
 
     check-yaml:
-      glob: "*.{yaml,yml}"
-      exclude: "^docs/|/migrations/|devcontainer.json|pnpm-lock\\.yaml"
-      run: python3 -c "import yaml, sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" {staged_files}
-
-    check-xml:
-      glob: "*.xml"
-      exclude: "^docs/|/migrations/"
-      run: python3 -c "from xml.etree import ElementTree as ET; import sys; [ET.parse(f) for f in sys.argv[1:]]" {staged_files}
+      glob: '**/*.{yaml,yml}'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
+        - '**/devcontainer.json'
+        - '**/templates/**'
+        - 'pnpm-lock.yaml'
+      run: uv run python -c "import yaml, sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]" {staged_files}
 
     debug-statements:
-      glob: "*.py"
-      exclude: "^docs/|/migrations/"
+      glob: '**/*.py'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
       run: "! grep -n -E '^\\s*(import pdb|from pdb import|import ipdb|from ipdb import|breakpoint\\(\\))' {staged_files}"
 
     detect-private-key:
-      exclude: "lefthook.yml"
+      exclude:
+        - 'docs/**'
+        - 'lefthook.yml'
       run: "! grep -rn 'PRIVATE KEY-----' {staged_files}"
 
     # === Python formatting ===
     django-upgrade:
-      glob: "*.py"
-      exclude: "^docs/|/migrations/"
+      glob: '**/*.py'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
       run: uv run django-upgrade --target-version 5.0 {staged_files}
       stage_fixed: true
 
     ruff-check:
-      glob: "*.py"
-      exclude: "^docs/|/migrations/"
-      run: uv run ruff check --fix --exit-non-zero-on-fix {staged_files}
+      glob: '**/*.py'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
+      run: uv run ruff check --force-exclude --fix --exit-non-zero-on-fix {staged_files}
       stage_fixed: true
 
     ruff-format:
-      glob: "*.py"
-      exclude: "^docs/|/migrations/"
-      run: uv run ruff format {staged_files}
+      glob: '**/*.py'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
+      run: uv run ruff format --force-exclude {staged_files}
       stage_fixed: true
 
     # === Django templates ===
     djlint-reformat:
-      glob: "*.html"
-      root: "platform_django/templates/"
+      glob: '**/*.html'
+      root: 'platform_django/templates/'
       run: uv run djlint --reformat {staged_files}
       stage_fixed: true
 
     djlint-lint:
-      glob: "*.html"
-      root: "platform_django/templates/"
+      glob: '**/*.html'
+      root: 'platform_django/templates/'
       run: uv run djlint {staged_files}
 
     # === Python testing & type checking ===
     mypy:
-      glob: "*.py"
-      exclude: "^docs/|/migrations/"
+      glob: '**/*.py'
+      exclude:
+        - 'docs/**'
+        - '**/migrations/**'
       run: uv run mypy . --config-file=pyproject.toml
+
+    # === Documentation build check ===
+    # docs-build:
+    #   glob: 'docs/**/*'
+    #   run: uv run sphinx-build -W -q docs docs/_build/html
 
     # === Frontend ===
     turbo-typecheck:
-      glob: "*.{ts,tsx}"
-      exclude: "node_modules|dist|\\.next"
+      glob: '**/*.{ts,tsx}'
+      exclude:
+        - '**/node_modules/**'
+        - '**/dist/**'
+        - '**/.next/**'
       run: pnpm turbo typecheck
 
     turbo-lint:
-      glob: "*.{ts,tsx,js,jsx}"
-      exclude: "node_modules|dist|\\.next"
+      glob: '**/*.{ts,tsx,js,jsx}'
+      exclude:
+        - '**/node_modules/**'
+        - '**/dist/**'
+        - '**/.next/**'
       run: pnpm turbo lint
 
     prettier:
-      glob: "*.{ts,tsx,js,jsx,json,css,md}"
-      exclude: "node_modules|dist|\\.next|src/services/platform_django"
+      glob: '**/*.{ts,tsx,js,jsx,json,css,md}'
+      exclude:
+        - '**/node_modules/**'
+        - '**/dist/**'
+        - '**/.next/**'
+        - 'src/services/platform_django/**'
       run: pnpm format
       stage_fixed: true

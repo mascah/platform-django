@@ -5,6 +5,7 @@ import ssl
 from pathlib import Path
 
 import environ
+from csp.constants import NONCE
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # platform_django/
@@ -81,7 +82,7 @@ THIRD_PARTY_APPS = [
     "django_celery_beat",
     "allauth.headless",
     "rest_framework",
-    "rest_framework.authentication",
+    "csp",
     "corsheaders",
     "drf_spectacular",
     "django_vite",
@@ -113,7 +114,7 @@ AUTHENTICATION_BACKENDS = [
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
 AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
-LOGIN_REDIRECT_URL = "users:redirect"
+LOGIN_REDIRECT_URL = "/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
 LOGIN_URL = "account_login"
 
@@ -142,6 +143,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "csp.middleware.CSPMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -339,7 +341,6 @@ SOCIALACCOUNT_FORMS = {"signup": "platform_django.users.forms.UserSocialSignupFo
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": [
@@ -369,12 +370,36 @@ SPECTACULAR_SETTINGS = {
 DJANGO_VITE = {
     "platform_django": {
         "dev_mode": DEBUG,
-        "dev_server_port": 5173,
+        "dev_server_port": env.int("VITE_PLATFORM_DJANGO_PORT", default=5173),
         "static_url_prefix": "platform_django",
         "manifest_path": str(
-            BASE_DIR / "apps" / "platform_django" / "dist" / "platform_django" / "manifest.json",
+            BASE_DIR
+            / "apps"
+            / "platform_django"
+            / "dist"
+            / "platform_django"
+            / "manifest.json",
         ),
     },
+}
+
+# Content Security Policy (CSP)
+# https://django-csp.readthedocs.io/
+# Restrictive policy for production (django-csp 4.0+ format)
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ("'none'",),
+        "script-src": ("'self'", NONCE),
+        "style-src": ("'self'", "'unsafe-inline'"),
+        "img-src": ("'self'", "data:"),
+        "font-src": ("'self'",),
+        "connect-src": ("'self'",),
+        "frame-ancestors": ("'none'",),
+        "form-action": ("'self'",),
+        "base-uri": ("'self'",),
+        "object-src": ("'none'",),
+        "upgrade-insecure-requests": True,
+    }
 }
 
 # Your stuff...

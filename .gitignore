@@ -285,3 +285,20 @@ apps/*/.astro/
 # Environment
 .envrc
 .env
+.env.local
+.env.backup
+
+# ruff
+.ruff_cache/
+
+# import lint
+.import_linter_cache/
+
+# Playwright
+.playwright/
+
+# Claude local settings
+CLAUDE.local.md
+
+# Temp
+tmp/
