@@ -275,9 +275,6 @@ platform_django/media/
 # Turborepo
 .turbo/
 
-# pnpm
-pnpm-lock.yaml
-
 # Frontend builds
 apps/*/dist/
 apps/*/.astro/
