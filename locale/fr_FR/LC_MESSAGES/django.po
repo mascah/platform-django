@@ -1,4 +1,4 @@
-# Translations for the Platform Django project
+# Translations for this project
 # Copyright (C) 2026 Mike Ascah
 # Mike Ascah <mike-ascah@example.com>, 2026.
 #

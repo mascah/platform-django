@@ -1,4 +1,4 @@
-# Platform Django - Landing Page
+# Landing Page
 
 Static landing page built with Astro.
 

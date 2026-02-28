@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Platform Django Developer Setup Script
+# Developer Setup Script
 # =============================================================================
 # Idempotent setup script for new developers.
 # Safe to run multiple times — only installs/configures what's missing.
@@ -36,7 +36,7 @@ cd "$PROJECT_DIR"
 
 echo ""
 echo "============================================"
-echo "  Platform Django Developer Setup"
+echo "  Developer Setup"
 echo "============================================"
 echo ""
 

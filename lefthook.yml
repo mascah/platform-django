@@ -135,9 +135,9 @@ pre-commit:
       run: uv run mypy . --config-file=pyproject.toml
 
     # === Documentation build check ===
-    # docs-build:
-    #   glob: 'docs/**/*'
-    #   run: uv run sphinx-build -W -q docs docs/_build/html
+    docs-build:
+      glob: 'docs/**/*'
+      run: uv run sphinx-build -W -q docs docs/_build/html
 
     # === Frontend ===
     turbo-typecheck:

@@ -1,4 +1,4 @@
-# Platform Django - React SPA
+# React SPA
 
 A React single-page application built with Vite, React Router, and TanStack Query.
 

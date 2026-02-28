@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Platform Django: modular monolith Django + Turborepo React for building web applications.
+Modular monolith Django + Turborepo React for building web applications.
 
 ## Commands
 
@@ -43,7 +43,7 @@ Platform Django: modular monolith Django + Turborepo React for building web appl
 ### Documentation
 
 - `just docs` — Build Sphinx documentation
-- `just docs-serve` — Serve docs with live reload (http://localhost:9000)
+- `just docs-serve` — Serve docs with live reload (<http://localhost:9000>)
 - `just clean-all` — Clean all build artifacts (Python, JS, docs)
 
 ## Worktree Development
@@ -164,7 +164,7 @@ uv init --package libs/<lib-name>
 
 ### Module Structure
 
-```
+```bash
 platform_django/<module>/
 ├── models.py       # Domain models
 ├── services.py     # Write operations
