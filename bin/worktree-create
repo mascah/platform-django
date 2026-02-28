@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bin/worktree-create — Claude Code WorktreeCreate hook
+# =============================================================================
+# Called automatically when `claude --worktree <name>` is invoked.
+# Creates a git worktree with isolated port allocation.
+#
+# Contract:
+#   stdin:  JSON with { name, cwd, session_id, hook_event_name }
+#   stdout: ONLY the absolute path to the created worktree
+#   stderr: All logging/progress output
+# =============================================================================
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# All logging goes to stderr (stdout is reserved for the worktree path)
+# ---------------------------------------------------------------------------
+log() { echo "$@" >&2; }
+
+# ---------------------------------------------------------------------------
+# Parse JSON input from stdin
+# ---------------------------------------------------------------------------
+INPUT=$(cat)
+NAME=$(echo "$INPUT" | jq -r '.name')
+CWD=$(echo "$INPUT" | jq -r '.cwd')
+
+if [[ -z "$NAME" || "$NAME" == "null" ]]; then
+  log "Error: 'name' field missing from input"
+  exit 1
+fi
+
+if [[ -z "$CWD" || "$CWD" == "null" ]]; then
+  log "Error: 'cwd' field missing from input"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Port configuration
+# ---------------------------------------------------------------------------
+# Read project port offset from main worktree's .env
+PROJECT_PORT_OFFSET=$(grep '^PROJECT_PORT_OFFSET=' "$CWD/.env" 2>/dev/null | cut -d'=' -f2)
+PROJECT_PORT_OFFSET=${PROJECT_PORT_OFFSET:-0}
+
+BASE_PORT=$((8000 + PROJECT_PORT_OFFSET))
+PORT_POOL_START=$((BASE_PORT + 1))
+PORT_POOL_END=$((BASE_PORT + 11))
+
+REGISTRY_FILE="$CWD/.worktree-ports.json"
+WORKTREE_DIR="$CWD/.claude/worktrees/$NAME"
+BRANCH_NAME="worktree-$NAME"
+
+# ---------------------------------------------------------------------------
+# Initialize registry if missing
+# ---------------------------------------------------------------------------
+if [[ ! -f "$REGISTRY_FILE" ]]; then
+  echo '{"allocations": {}, "version": 1}' > "$REGISTRY_FILE"
+  log "Initialized port registry: $REGISTRY_FILE"
+fi
+
+# ---------------------------------------------------------------------------
+# Check if worktree path still exists and is valid git repo
+# ---------------------------------------------------------------------------
+is_worktree_valid() {
+  local path="$1"
+  [[ -d "$path" ]] && git -C "$path" rev-parse --is-inside-work-tree &>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Clean stale entries from registry
+# ---------------------------------------------------------------------------
+clean_stale_entries() {
+  local temp_file
+  temp_file=$(mktemp)
+  local cleaned=0
+
+  cp "$REGISTRY_FILE" "$temp_file"
+
+  while IFS= read -r line; do
+    local port path
+    port=$(echo "$line" | cut -d' ' -f1)
+    path=$(echo "$line" | cut -d' ' -f2-)
+
+    if ! is_worktree_valid "$path"; then
+      jq "del(.allocations[\"$port\"])" "$temp_file" > "$temp_file.new" && mv "$temp_file.new" "$temp_file"
+      log "  Cleaned stale entry: port $port -> $path"
+      cleaned=$((cleaned + 1))
+    fi
+  done < <(jq -r '.allocations | to_entries[] | "\(.key) \(.value.worktree_path)"' "$REGISTRY_FILE" 2>/dev/null || true)
+
+  if [[ $cleaned -gt 0 ]]; then
+    mv "$temp_file" "$REGISTRY_FILE"
+    log "  Freed $cleaned stale port(s)"
+  else
+    rm -f "$temp_file"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Find lowest available port in the pool
+# ---------------------------------------------------------------------------
+find_available_port() {
+  for port in $(seq $PORT_POOL_START $PORT_POOL_END); do
+    local allocation
+    allocation=$(jq -r ".allocations[\"$port\"]" "$REGISTRY_FILE" 2>/dev/null)
+    if [[ "$allocation" == "null" || -z "$allocation" ]]; then
+      echo "$port"
+      return 0
+    fi
+  done
+
+  # All ports in use — try cleaning stale entries
+  log "All ports in use, checking for stale entries..."
+  clean_stale_entries
+
+  for port in $(seq $PORT_POOL_START $PORT_POOL_END); do
+    local allocation
+    allocation=$(jq -r ".allocations[\"$port\"]" "$REGISTRY_FILE" 2>/dev/null)
+    if [[ "$allocation" == "null" || -z "$allocation" ]]; then
+      echo "$port"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Allocate port
+# ---------------------------------------------------------------------------
+DJANGO_PORT=$(find_available_port)
+if [[ -z "$DJANGO_PORT" ]]; then
+  log "Error: No available ports in pool ($PORT_POOL_START-$PORT_POOL_END)"
+  log "Run 'bin/worktree-ports cleanup' to free stale allocations"
+  exit 1
+fi
+
+PORT_OFFSET=$((DJANGO_PORT - BASE_PORT))
+
+log "Allocating port $DJANGO_PORT (offset $PORT_OFFSET) for worktree: $NAME"
+
+# ---------------------------------------------------------------------------
+# Create git worktree
+# ---------------------------------------------------------------------------
+mkdir -p "$CWD/.claude/worktrees"
+
+if git -C "$CWD" show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
+  git -C "$CWD" worktree add "$WORKTREE_DIR" "$BRANCH_NAME" >/dev/null 2>&1
+  log "Checked out existing branch: $BRANCH_NAME"
+else
+  git -C "$CWD" worktree add -b "$BRANCH_NAME" "$WORKTREE_DIR" >/dev/null 2>&1
+  log "Created new branch: $BRANCH_NAME"
+fi
+
+# Get absolute path (resolve any symlinks)
+WORKTREE_ABS_PATH="$(cd "$WORKTREE_DIR" && pwd)"
+
+# ---------------------------------------------------------------------------
+# Register port allocation
+# ---------------------------------------------------------------------------
+jq --arg port "$DJANGO_PORT" \
+   --arg path "$WORKTREE_ABS_PATH" \
+   --arg branch "$BRANCH_NAME" \
+   '.allocations[$port] = {"worktree_path": $path, "branch": $branch}' \
+   "$REGISTRY_FILE" > "$REGISTRY_FILE.tmp" && mv "$REGISTRY_FILE.tmp" "$REGISTRY_FILE"
+
+log "Registered port $DJANGO_PORT -> $WORKTREE_ABS_PATH"
+
+# ---------------------------------------------------------------------------
+# Copy config files from main worktree
+# ---------------------------------------------------------------------------
+log "Copying configuration files..."
+for file in ".env" ".npmrc"; do
+  if [[ -f "$CWD/$file" ]]; then
+    cp "$CWD/$file" "$WORKTREE_DIR/$file"
+    log "  Copied $file"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Generate environment files directly
+# ---------------------------------------------------------------------------
+# We generate .envrc and .env.local here (not via env-refresh) because the
+# worktree is created from the current commit which may have an older version
+# of env-refresh that doesn't know about the new registry location.
+# ---------------------------------------------------------------------------
+log "Setting up environment files..."
+
+# Create .envrc from template
+if [[ -f "$WORKTREE_DIR/.envrc.example" ]]; then
+  cp "$WORKTREE_DIR/.envrc.example" "$WORKTREE_DIR/.envrc"
+  log "  Created .envrc from template"
+fi
+
+# Create .env.local with worktree-specific ports
+WORKTREE_ID=$(echo "$NAME" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '_' | sed 's/_*$//')
+TOTAL_OFFSET=$((PROJECT_PORT_OFFSET + PORT_OFFSET))
+cat > "$WORKTREE_DIR/.env.local" << EOF
+# Port configuration (auto-generated by bin/worktree-create)
+# Worktree: $NAME
+# Project port offset: $PROJECT_PORT_OFFSET, worktree offset: $PORT_OFFSET
+
+# Docker host port mappings (for external access to containers)
+DOCKER_HOST_DJANGO_PORT=$((8000 + TOTAL_OFFSET))
+DOCKER_HOST_POSTGRES_PORT=$((5432 + TOTAL_OFFSET))
+DOCKER_HOST_REDIS_PORT=$((6379 + TOTAL_OFFSET))
+DOCKER_HOST_MAILPIT_PORT=$((8025 + TOTAL_OFFSET))
+DOCKER_HOST_FLOWER_PORT=$((5555 + TOTAL_OFFSET))
+
+# App config (Vite runs on host)
+VITE_PLATFORM_DJANGO_PORT=$((5173 + TOTAL_OFFSET))
+
+# Docker container naming
+WORKTREE_ID=$WORKTREE_ID
+EOF
+log "  Created .env.local (project offset $PROJECT_PORT_OFFSET + worktree offset $PORT_OFFSET, WORKTREE_ID=$WORKTREE_ID)"
+
+# Allow direnv
+if command -v direnv &>/dev/null && [[ -f "$WORKTREE_DIR/.envrc" ]]; then
+  (cd "$WORKTREE_DIR" && direnv allow) >&2
+  log "  direnv allowed"
+fi
+
+# ---------------------------------------------------------------------------
+# Install dependencies
+# ---------------------------------------------------------------------------
+log "Installing dependencies..."
+(cd "$WORKTREE_DIR" && uv sync 2>&1 && pnpm install 2>&1) >&2 || {
+  log "Warning: Dependency install had issues (continuing)"
+}
+
+# ---------------------------------------------------------------------------
+# Log port summary
+# ---------------------------------------------------------------------------
+log ""
+log "Worktree ready: $NAME"
+log "  Django:   http://localhost:$((8000 + TOTAL_OFFSET))"
+log "  Vite:     http://localhost:$((5173 + TOTAL_OFFSET))"
+log "  Postgres: localhost:$((5432 + TOTAL_OFFSET))"
+log "  Redis:    localhost:$((6379 + TOTAL_OFFSET))"
+log ""
+
+# ---------------------------------------------------------------------------
+# Output ONLY the worktree path (Claude Code reads this)
+# ---------------------------------------------------------------------------
+echo "$WORKTREE_ABS_PATH"

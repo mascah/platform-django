@@ -12,7 +12,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: parseInt(process.env.VITE_PLATFORM_DJANGO_PORT || '5173'),
     proxy: {
       '/ph/static': {
         target: 'https://us-assets.i.posthog.com',

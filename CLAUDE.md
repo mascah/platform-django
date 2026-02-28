@@ -48,11 +48,32 @@ Modular monolith Django + Turborepo React for building web applications.
 
 ## Worktree Development
 
-This project supports parallel development using git worktrees. Each worktree runs Docker services on isolated ports managed by a central registry.
+This project supports parallel development using Claude Code's `--worktree` flag. Each worktree runs Docker services on isolated ports managed by a central registry.
 
-### Port Registry System
+### Creating a Worktree
 
-Ports are allocated from a pool (Django 8001-8011, main uses 8000) and stored in `~/.platform-django-worktree-ports.json`. All service ports are calculated from the same offset to avoid conflicts.
+```bash
+# Start Claude Code in an isolated worktree
+claude --worktree feature-name
+
+# Auto-generated name
+claude --worktree
+```
+
+This automatically:
+
+1. Creates a git worktree at `.claude/worktrees/{name}`
+2. Allocates an isolated port from the registry (Django 8001-8011, main uses 8000)
+3. Generates `.env.local` with all service ports
+4. Installs Python and Node dependencies
+
+When you exit the session, Claude prompts to keep or remove the worktree. Removal automatically releases the port allocation.
+
+### Port Isolation
+
+Each project gets a unique `PROJECT_PORT_OFFSET` (set in `.env.example` by `bin/rename-project`). This shifts ALL service ports to avoid conflicts when running multiple projects simultaneously. Worktree offsets stack on top.
+
+Ports are stored in `.worktree-ports.json` (gitignored).
 
 ```bash
 # View all port allocations
@@ -63,44 +84,18 @@ bin/worktree-ports status
 
 # Clean up stale entries (deleted worktrees)
 bin/worktree-ports cleanup
-```
 
-### Port Discovery
-
-```bash
+# Show current port configuration
 just ports
-# Output: Django: 8000, Vite: 5173 (or worktree-specific ports)
 ```
 
-### Creating a New Worktree
-
-```bash
-# From any worktree
-. bin/worktree-new feature-branch
-```
-
-This allocates the next available port from the registry and generates `.env.local` with all service ports:
-
-- `DOCKER_HOST_DJANGO_PORT`, `DOCKER_HOST_POSTGRES_PORT`, `DOCKER_HOST_REDIS_PORT`, etc. — Docker host port mappings
-- `VITE_PLATFORM_DJANGO_PORT` — Vite dev server port (runs on host)
-- `WORKTREE_ID` — Used for Docker container naming
-
-### Removing a Worktree
-
-```bash
-# From within the worktree to remove
-. bin/worktree-remove
-```
-
-This releases the port allocation back to the pool.
-
-### Starting Development
+### Working in a Worktree
 
 ```bash
 # 1. Start Docker stack
 just up
 
-# 2. Start Vite dev server (runs on host, uses VITE_PLATFORM_DJANGO_PORT)
+# 2. Start Vite dev server (runs on host)
 pnpm dev
 ```
 
@@ -114,7 +109,7 @@ cd apps/platform_django && pnpm openapi-ts
 
 ### Database Considerations
 
-Each worktree can have its own isolated PostgreSQL database via docker-compose:
+Each worktree has its own isolated PostgreSQL database via docker-compose:
 
 - **Migrations**: Run `just manage migrate` in each worktree
 - **Testing**: pytest uses a separate test database (safe to run in parallel)
