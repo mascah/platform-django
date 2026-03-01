@@ -36,10 +36,15 @@ ports:
     @echo "  Mailpit:             ${DOCKER_HOST_MAILPIT_PORT:-8025}"
     @echo "  Flower:              ${DOCKER_HOST_FLOWER_PORT:-5555}"
 
-# up: Start all containers.
+# up: Start core containers (django, postgres, redis).
 up:
-    @echo "Building and starting containers..."
+    @echo "Starting core containers..."
     @{{ COMPOSE }} up -d --remove-orphans
+
+# up-all: Start all containers including celery, mailpit, flower.
+up-all:
+    @echo "Starting all containers..."
+    @COMPOSE_PROFILES=mail,celery,flower {{ COMPOSE }} up -d --remove-orphans
 
 # down: Stop all containers.
 down:

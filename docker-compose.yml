@@ -12,7 +12,6 @@ services:
     depends_on:
       - postgres
       - redis
-      - mailpit
     volumes:
       - .:/app:z
     env_file:
@@ -36,6 +35,7 @@ services:
   mailpit:
     image: docker.io/axllent/mailpit:latest
     container_name: platform_django_${WORKTREE_ID:-main}_mailpit
+    profiles: [mail]
     ports:
       - '${DOCKER_HOST_MAILPIT_PORT:-8025}:8025'
 
@@ -50,26 +50,27 @@ services:
   celeryworker:
     <<: *django
     container_name: platform_django_${WORKTREE_ID:-main}_celeryworker
+    profiles: [celery]
     depends_on:
       - redis
       - postgres
-      - mailpit
     ports: []
     command: /start-celeryworker
 
   celerybeat:
     <<: *django
     container_name: platform_django_${WORKTREE_ID:-main}_celerybeat
+    profiles: [celery]
     depends_on:
       - redis
       - postgres
-      - mailpit
     ports: []
     command: /start-celerybeat
 
   flower:
     <<: *django
     container_name: platform_django_${WORKTREE_ID:-main}_flower
+    profiles: [flower]
     ports:
       - '${DOCKER_HOST_FLOWER_PORT:-5555}:5555'
     command: /start-flower
