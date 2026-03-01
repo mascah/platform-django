@@ -389,11 +389,27 @@ DJANGO_VITE = {
 CONTENT_SECURITY_POLICY = {
     "DIRECTIVES": {
         "default-src": ("'none'",),
-        "script-src": ("'self'", NONCE),
-        "style-src": ("'self'", "'unsafe-inline'"),
+        "script-src": (
+            "'self'",
+            NONCE,
+            "https://internal-j.posthog.com",
+            "https://cdnjs.cloudflare.com",
+        ),
+        "style-src": (
+            "'self'",
+            "'unsafe-inline'",
+            "https://rsms.me",
+            "https://cdnjs.cloudflare.com",
+        ),
         "img-src": ("'self'", "data:"),
-        "font-src": ("'self'",),
-        "connect-src": ("'self'",),
+        "font-src": ("'self'", "https://rsms.me"),
+        "connect-src": (
+            "'self'",
+            "https://us.posthog.com",
+            "https://us.i.posthog.com",
+            "https://internal-j.posthog.com",
+            "https://cdnjs.cloudflare.com",
+        ),
         "frame-ancestors": ("'none'",),
         "form-action": ("'self'",),
         "base-uri": ("'self'",),

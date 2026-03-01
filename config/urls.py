@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from csp.decorators import csp_exempt
@@ -5,7 +6,6 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth.decorators import login_required
-from django.http import FileResponse
 from django.http import Http404
 from django.http import HttpResponse
 from django.urls import include
@@ -23,18 +23,23 @@ def healthz(request):
 
 
 def serve_landing_page(request):
-    """Serve pre-rendered Astro landing page."""
+    """Serve pre-rendered Astro landing page with CSP nonce injection."""
     if settings.DEBUG:
-        # In development, read from the Astro build output directly
         html_path = Path(settings.BASE_DIR) / "apps/landing/dist/index.html"
     else:
-        # In production, read from STATIC_ROOT (populated by collectstatic)
         html_path = Path(settings.STATIC_ROOT) / "index.html"
 
-    if html_path.exists():
-        return FileResponse(html_path.open("rb"), content_type="text/html")
-    msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
-    raise Http404(msg)
+    if not html_path.exists():
+        msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
+        raise Http404(msg)
+
+    html = html_path.read_text()
+
+    # Inject CSP nonce into all <script> tags so they pass the nonce-based policy.
+    nonce = str(request.csp_nonce)
+    html = re.sub(r"<script(?=[\s>])", f'<script nonce="{nonce}"', html)
+
+    return HttpResponse(html, content_type="text/html")
 
 
 urlpatterns = [
