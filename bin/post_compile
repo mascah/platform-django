@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
 
-# Build frontend assets
-pnpm install
-pnpm build
-
 python manage.py collectstatic --noinput
 python manage.py compilemessages -i site-packages
