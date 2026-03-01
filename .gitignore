@@ -303,3 +303,5 @@ CLAUDE.local.md
 
 # Temp
 tmp/
+
+.django_tailwind_cli
