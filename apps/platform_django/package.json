@@ -18,7 +18,7 @@
     "@tanstack/react-query-devtools": "^5.90.2",
     "@workspace/ui": "workspace:*",
     "lucide-react": "^0.575.0",
-    "posthog-js": "^1.194.0",
+    "posthog-js": "^1.356.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router": "^7.9.6",
