@@ -1,10 +1,10 @@
 from csp.constants import NONCE
 
-from .base import *  # noqa: F403
-from .base import DJANGO_VITE
-from .base import INSTALLED_APPS
-from .base import MIDDLEWARE
-from .base import env
+from config.settings.base import *  # noqa: F403
+from config.settings.base import DJANGO_VITE
+from config.settings.base import INSTALLED_APPS
+from config.settings.base import MIDDLEWARE
+from config.settings.base import env
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -96,13 +96,24 @@ CONTENT_SECURITY_POLICY = {
         "script-src": (
             "'self'",
             NONCE,
+            "https://internal-j.posthog.com",
+            "https://cdnjs.cloudflare.com",
             *_vite_dev_servers,
         ),
-        "style-src": ("'self'", "'unsafe-inline'"),
+        "style-src": (
+            "'self'",
+            "'unsafe-inline'",
+            "https://rsms.me",
+            "https://cdnjs.cloudflare.com",
+        ),
         "img-src": ("'self'", "data:"),
-        "font-src": ("'self'",),
+        "font-src": ("'self'", "https://rsms.me"),
         "connect-src": (
             "'self'",
+            "https://us.posthog.com",
+            "https://us.i.posthog.com",
+            "https://internal-j.posthog.com",
+            "https://cdnjs.cloudflare.com",
             *_vite_dev_servers,
             *_vite_ws_servers,
         ),
