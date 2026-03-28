@@ -19,12 +19,12 @@
   },
   "devDependencies": {
     "@playwright/cli": "^0.1.1",
-    "@turbo/gen": "^2.8.12",
+    "@turbo/gen": "^2.8.21",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/prettier-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.6.2",
-    "turbo": "^2.8.12",
+    "turbo": "^2.8.21",
     "typescript": "^5"
   },
   "prettier": "@workspace/prettier-config"
