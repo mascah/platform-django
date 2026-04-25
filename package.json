@@ -18,13 +18,13 @@
     "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@playwright/cli": "^0.1.1",
-    "@turbo/gen": "^2.8.12",
+    "@playwright/cli": "^0.1.9",
+    "@turbo/gen": "^2.9.6",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/prettier-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "prettier": "^3.6.2",
-    "turbo": "^2.8.12",
+    "prettier": "^3.8.3",
+    "turbo": "^2.9.6",
     "typescript": "^5"
   },
   "prettier": "@workspace/prettier-config"
