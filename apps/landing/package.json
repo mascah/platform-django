@@ -16,7 +16,7 @@
     "@astrojs/check": "^0.9.10",
     "@astrojs/react": "^4.2.1",
     "@workspace/ui": "workspace:*",
-    "astro": "^5.9.0",
+    "astro": "^7.1.6",
     "lucide-react": "^0.575.0",
     "posthog-js": "^1.409.0",
     "react": "^19.2.8",
