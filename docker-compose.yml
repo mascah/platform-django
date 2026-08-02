@@ -40,7 +40,7 @@ services:
       - '${DOCKER_HOST_MAILPIT_PORT:-8025}:8025'
 
   redis:
-    image: docker.io/redis:8.8
+    image: docker.io/redis:8.10
     container_name: platform_django_${WORKTREE_ID:-main}_redis
     volumes:
       - platform_django_local_redis_data:/data
