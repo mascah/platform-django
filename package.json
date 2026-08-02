@@ -25,7 +25,7 @@
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.9.6",
     "turbo": "^2.10.7",
-    "typescript": "^5"
+    "typescript": "^7"
   },
   "prettier": "@workspace/prettier-config"
 }
