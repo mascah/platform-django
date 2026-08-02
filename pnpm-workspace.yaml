@@ -2,3 +2,18 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'e2e'
+
+# pnpm 11 errors on unapproved build scripts instead of warning. Both of these
+# were already skipped under pnpm 10's default-deny, so keep them off:
+# core-js' postinstall is a donation banner, esbuild ships its binary via
+# platform-specific optional deps.
+allowBuilds:
+  core-js: false
+  esbuild: false
+
+# pnpm 11 reads only auth/registry settings from .npmrc; everything else lives here.
+# publicHoistPattern defaults to [] — editors and flat-config plugin resolution
+# need eslint/prettier at the root of node_modules.
+publicHoistPattern:
+  - '*eslint*'
+  - '*prettier*'
