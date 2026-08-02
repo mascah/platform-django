@@ -151,7 +151,7 @@ dev = [
     "ipdb==0.13.13",
     "watchfiles==1.2.0",
     "mypy==1.19.1",
-    "django-stubs[compatible-mypy]==5.2.9",
+    "django-stubs[compatible-mypy]==6.0.7",
     "pytest==9.0.3",
     "pytest-sugar==1.1.1",
     "pytest-cov>=7.1.0,<8.0",
