@@ -50,6 +50,8 @@ django_settings_module = "config.settings.test"
 [tool.djlint]
 blank_line_after_tag = "load,extends"
 close_void_tags = true
+# allauth's {% slot %}/{% endslot %} isn't a builtin django tag
+custom_blocks = "slot"
 format_css = true
 format_js = true
 # TODO: remove T002 when fixed https://github.com/djlint/djLint/issues/687
