@@ -1,5 +1,5 @@
 # Frontend build stage
-FROM docker.io/node:22.14-bookworm-slim AS client-builder
+FROM docker.io/node:22.23.2-trixie-slim AS client-builder
 
 ARG APP_HOME=/app
 WORKDIR ${APP_HOME}
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
 # define an alias for the specific python version used in this file.
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS python-build-stage
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS python-build-stage
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0
 
@@ -51,7 +51,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 # Python 'run' stage
-FROM python:3.13.13-slim-bookworm AS python-run-stage
+FROM python:3.13.14-slim-trixie AS python-run-stage
 
 ARG APP_HOME=/app
 
