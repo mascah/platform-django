@@ -246,8 +246,8 @@ Verify Installation
 ::
 
     python --version      # 3.13.x
-    node --version        # v22.14.0
-    pnpm --version        # 10.x
+    node --version        # v24.x (matches .nvmrc)
+    pnpm --version        # 11.x
     just --version
     docker --version
 

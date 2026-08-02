@@ -1,11 +1,12 @@
 # Frontend build stage
-FROM docker.io/node:22.23.2-trixie-slim AS client-builder
+FROM docker.io/node:24.18.1-trixie-slim AS client-builder
 
 ARG APP_HOME=/app
 WORKDIR ${APP_HOME}
 
-# Install pnpm
-RUN npm install -g pnpm
+# Use the pnpm version pinned in package.json#packageManager rather than
+# whatever "latest" happens to be on the day of the build.
+RUN corepack enable pnpm
 
 COPY ./package.json ./pnpm-lock.yaml ./pnpm-workspace.yaml ./turbo.json ${APP_HOME}/
 COPY ./apps ${APP_HOME}/apps
