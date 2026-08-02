@@ -33,6 +33,10 @@ myst_enable_extensions = [
 # List of patterns to ignore when looking for source files.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "plans"]
 
+# Docs aimed at agents/tooling live outside the reader-facing toctree; don't let
+# the -W build fail over them. Real reference errors still break the build.
+suppress_warnings = ["toc.not_included"]
+
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = "sphinx_rtd_theme"
