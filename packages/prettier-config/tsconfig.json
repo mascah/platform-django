@@ -4,7 +4,8 @@
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo.json",
     "allowJs": true,
     "checkJs": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": ["./**/*.mjs"],
   "exclude": ["node_modules"]
