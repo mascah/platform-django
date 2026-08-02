@@ -195,3 +195,17 @@ platform_django/<module>/
 - `FakeEventBus` for testing event handlers
 - `django_capture_on_commit_callbacks` for transaction tests
 - No secrets in code — use environment variables
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as GitHub issues in `mascah/platform-django`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` plus `docs/adr/` at the repo root, created lazily as terms and decisions get resolved. See `docs/agents/domain.md`.
