@@ -35,7 +35,7 @@
     "@workspace/prettier-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^10.8.0",
-    "typescript": "~5.9.3",
+    "typescript": "~7.0.2",
     "vite": "^8.2.0"
   },
   "prettier": "@workspace/prettier-config"
