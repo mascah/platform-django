@@ -13,25 +13,25 @@
     "typecheck": "astro check && tsc --noEmit"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.9",
+    "@astrojs/check": "^0.9.10",
     "@astrojs/react": "^4.2.1",
     "@workspace/ui": "workspace:*",
     "astro": "^5.9.0",
     "lucide-react": "^0.575.0",
-    "posthog-js": "^1.376.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "posthog-js": "^1.409.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@workspace/eslint-config": "workspace:*",
     "@workspace/prettier-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "@tailwindcss/vite": "^4.3.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^25.9.1",
-    "@types/react": "^19.2.15",
-    "@types/react-dom": "^19.2.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
     "eslint": "^10.8.0",
-    "tailwindcss": "^4.3.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3"
   },
   "prettier": "@workspace/prettier-config"
