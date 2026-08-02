@@ -72,6 +72,16 @@ updates:
       - 'dependencies'
       - 'javascript'
     groups:
+      # eslint core and its plugins must move together — majors are gated on each
+      # other's peer ranges, so a lone bump can never pass CI. Majors included
+      # deliberately (no update-types filter), unlike the catch-all group below.
+      eslint:
+        patterns:
+          - 'eslint'
+          - '@eslint/*'
+          - 'eslint-*'
+          - 'typescript-eslint'
+          - '@typescript-eslint/*'
       javascript:
         update-types:
           - 'minor'
