@@ -19,8 +19,6 @@ updates:
   # Enable version updates for Docker
   - package-ecosystem: 'docker'
     directories:
-      - 'docker/local/django/'
-      - 'docker/local/uv/'
       - 'docker/production/django/'
     schedule:
       interval: 'weekly'

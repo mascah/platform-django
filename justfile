@@ -1,9 +1,7 @@
-# Docker compose command with worktree-specific env file (falls back if .env.local missing)
-COMPOSE := if path_exists(".env.local") == "true" {
-    "docker compose --env-file .env.local"
-} else {
-    "docker compose"
-}
+# .env is the one environment file, and it carries this worktree's database
+# name, Redis index and application ports. Recipes below read it as ordinary
+# environment variables; docker compose finds it by itself.
+set dotenv-load := true
 
 ## Just does not yet manage signals for subprocesses reliably, which can lead to unexpected behavior.
 ## Exercise caution before expanding its usage in production environments.
@@ -28,61 +26,66 @@ setup:
 env-refresh *args:
     @./bin/env-refresh {{args}}
 
-# === Development ===
+# === Backing Services ===
+#
+# One Postgres and one Redis serve every worktree on this machine, so these
+# recipes act on containers shared with any other session — `just down` stops
+# them for everyone. Worktrees isolate by database and Redis index instead.
 
-# ports: Show current worktree port configuration.
-ports:
-    @echo "Current port configuration:"
-    @echo "  Django:              ${DOCKER_HOST_DJANGO_PORT:-8000}"
-    @echo "  Vite:                ${VITE_PLATFORM_DJANGO_PORT:-5173}"
-    @echo "  Postgres:            ${DOCKER_HOST_POSTGRES_PORT:-5432}"
-    @echo "  Redis:               ${DOCKER_HOST_REDIS_PORT:-6379}"
-    @echo "  Mailpit:             ${DOCKER_HOST_MAILPIT_PORT:-8025}"
-    @echo "  Flower:              ${DOCKER_HOST_FLOWER_PORT:-5555}"
-
-# up: Start core containers (django, postgres, redis).
+# up: Start the shared backing services and ensure this worktree's database exists.
 up:
-    @echo "Starting core containers..."
-    @{{ COMPOSE }} up -d --remove-orphans
+    #!/usr/bin/env bash
+    set -euo pipefail
+    docker compose up -d --wait
+    if [[ -z "$(docker compose exec -T postgres psql -U "$POSTGRES_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$POSTGRES_DB'")" ]]; then
+        docker compose exec -T postgres createdb -U "$POSTGRES_USER" "$POSTGRES_DB"
+        echo "Created database $POSTGRES_DB"
+    fi
 
-# up-all: Start all containers including celery, mailpit, flower.
-up-all:
-    @echo "Starting all containers..."
-    @COMPOSE_PROFILES=mail,celery,flower {{ COMPOSE }} up -d --remove-orphans
-
-# down: Stop all containers.
+# down: Stop the shared backing services (affects every worktree).
 down:
-    @echo "Stopping containers..."
-    @{{ COMPOSE }} down
+    @docker compose down
 
-# build: Build python image.
-build:
-    @echo "Building python image..."
-    @{{ COMPOSE }} build django
-
-# prune: Remove containers and their volumes.
+# prune: Remove the shared backing services and their data (affects every worktree).
 prune *args:
-    @echo "Killing containers and removing volumes..."
-    @{{ COMPOSE }} down -v {{args}}
+    @docker compose down -v {{args}}
 
-# rebuild: Stop, rebuild, and restart containers.
-rebuild *args:
-    @echo "Rebuilding containers..."
-    @{{ COMPOSE }} down
-    @{{ COMPOSE }} build {{args}}
-    @{{ COMPOSE }} up -d --remove-orphans
-
-# logs: View container logs.
+# logs: View backing service logs.
 logs *args:
-    @{{ COMPOSE }} logs -f {{args}}
+    @docker compose logs -f {{args}}
 
-# shell: Open a shell in the Django container.
-shell:
-    @{{ COMPOSE }} exec django bash
+# psql: Open a psql shell on this worktree's database.
+psql:
+    @docker compose exec postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB"
 
-# manage: Execute Django management command in container.
+# === Development ===
+#
+# Django, Vite and Celery are application processes and run on the host.
+
+# ports: Show this worktree's configuration.
+ports:
+    @echo "Worktree configuration (from .env):"
+    @echo "  Django:    http://localhost:${DJANGO_PORT}"
+    @echo "  Vite:      http://localhost:${VITE_PORT}"
+    @echo "  Database:  ${POSTGRES_DB} on ${POSTGRES_HOST}:${POSTGRES_PORT}"
+    @echo "  Redis:     index ${REDIS_DB} on ${REDIS_HOST}:${REDIS_PORT}"
+    @echo "  Mailpit:   http://localhost:8025"
+
+# serve: Run the Django development server on this worktree's port.
+serve:
+    @uv run python manage.py runserver 0.0.0.0:${DJANGO_PORT}
+
+# worker: Run a Celery worker against this worktree's Redis index.
+worker:
+    @uv run celery -A config.celery_app worker --loglevel=info
+
+# beat: Run the Celery scheduler against this worktree's Redis index.
+beat:
+    @uv run celery -A config.celery_app beat --loglevel=info
+
+# manage: Execute a Django management command.
 manage +args:
-    @{{ COMPOSE }} exec django python manage.py {{args}}
+    @uv run python manage.py {{args}}
 
 # === Documentation ===
 

@@ -3,8 +3,8 @@ import path from 'path';
 
 const authFile = path.join(__dirname, 'playwright/.auth/user.json');
 
-// Get Django port from environment (same env var used by vite.config.ts)
-const djangoPort = process.env.DOCKER_HOST_DJANGO_PORT || '8000';
+// Get Django port from environment (the same variable the application server binds)
+const djangoPort = process.env.DJANGO_PORT || '8000';
 const baseURL = process.env.E2E_BASE_URL || `http://localhost:${djangoPort}`;
 
 export default defineConfig({

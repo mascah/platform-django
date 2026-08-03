@@ -439,7 +439,7 @@ Development Workflow
 
 The typical development cycle when working with the API:
 
-1. **Start Django** with ``just up`` or ``docker compose up``
+1. **Start Django** with ``just serve``
 
 2. **Modify Django API** - Add or change serializers, viewsets, or fields
 

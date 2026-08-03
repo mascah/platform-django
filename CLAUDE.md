@@ -11,15 +11,16 @@ Modular monolith Django + Turborepo React for building web applications.
 - `bin/bootstrap` — Make a fresh checkout runnable (toolchain, dependencies, .env). Assumes no package manager
 - `just setup` — Developer conveniences on top of bootstrap (shell integration, git hooks)
 - `just env-refresh` — Refresh .env from its template (preserves manual overrides)
-- `just up` — Start Docker stack (Django, Postgres, Redis, Celery, etc.)
-- `just down` — Stop Docker stack
-- `just rebuild` — Stop, rebuild, and restart containers
-- `just prune` — Remove containers and their volumes
-- `just logs` — View container logs
-- `just manage <cmd>` — Run manage.py in container
-- `just shell` — Open bash shell in Django container
-- `just ports` — Show current worktree port configuration
-- `pnpm dev` — Run Vite dev server (runs on host)
+- `just up` — Start the shared backing services (Postgres, Redis, Mailpit) and create this worktree's database
+- `just down` — Stop the shared backing services (affects every worktree)
+- `just prune` — Remove the shared backing services and their data (affects every worktree)
+- `just logs` — View backing service logs
+- `just psql` — Open a psql shell on this worktree's database
+- `just serve` — Run Django on this worktree's port (host process)
+- `just worker` / `just beat` — Run Celery against this worktree's Redis index
+- `just manage <cmd>` — Run manage.py
+- `just ports` — Show this worktree's ports, database and Redis index
+- `pnpm dev` — Run Vite dev server
 
 ### Testing & Quality
 
@@ -49,7 +50,7 @@ Modular monolith Django + Turborepo React for building web applications.
 
 ## Worktree Development
 
-This project supports parallel development using Claude Code's `--worktree` flag. Each worktree runs Docker services on isolated ports managed by a central registry.
+This project supports parallel development using Claude Code's `--worktree` flag. Worktrees share the machine's backing services and isolate by database name and Redis index.
 
 ### Creating a Worktree
 
@@ -64,41 +65,42 @@ claude --worktree
 This automatically:
 
 1. Creates a git worktree at `.claude/worktrees/{name}`
-2. Allocates an isolated port from the registry (Django 8001-8011, main uses 8000)
-3. Generates `.env.local` with all service ports
-4. Installs Python and Node dependencies
+2. Generates `.env` with its own database name, Redis index and application ports
+3. Installs Python and Node dependencies
 
-When you exit the session, Claude prompts to keep or remove the worktree. Removal automatically releases the port allocation.
+When you exit the session, Claude prompts to keep or remove the worktree.
 
-### Port Isolation
+### Isolation
 
-Each project gets a unique `PROJECT_PORT_OFFSET` (set in `.env.example` by `bin/rename-project`). This shifts ALL service ports to avoid conflicts when running multiple projects simultaneously. Worktree offsets stack on top.
+One Postgres and one Redis serve every worktree on the machine, so a worktree does not run a stack of its own. It isolates by:
 
-Ports are stored in `.worktree-ports.json` (gitignored).
+- **Database** — `{PROJECT_SLUG}_{worktree}`, alongside the main checkout's `{PROJECT_SLUG}`
+- **Redis logical index** — `REDIS_DB`, one per worktree (Redis serves 16)
+- **Application ports** — `DJANGO_PORT` and `VITE_PORT`, the only ports that need allocating, since Django and Vite run on the host
+
+Those services are shared across every _project_ on the machine too, not just every worktree of this one. `PROJECT_SLUG` is what keeps two projects apart: it defaults to the checkout's directory name, and it names the database, the cache key prefix and the Celery queue. Two projects may sit on the same Redis index without interfering, because the keys and the queue carry the slug.
+
+`bin/env-refresh` works those out on first write and puts them in `.env`, which is the record of what the worktree took — sibling worktrees are read out of their own `.env` files, so there is no registry to go stale and nothing to clean up.
 
 ```bash
-# View all port allocations
-bin/worktree-ports list
-
-# Check registry status
-bin/worktree-ports status
-
-# Clean up stale entries (deleted worktrees)
-bin/worktree-ports cleanup
-
-# Show current port configuration
+# Show this worktree's ports, database and Redis index
 just ports
 ```
 
 ### Working in a Worktree
 
 ```bash
-# 1. Start Docker stack
+# 1. Start the shared backing services and create this worktree's database
 just up
 
-# 2. Start Vite dev server (runs on host)
+# 2. Start Django (host process, on this worktree's port)
+just serve
+
+# 3. Start the Vite dev server
 pnpm dev
 ```
+
+`just down` and `just prune` act on the shared containers, so they affect every worktree.
 
 ### OpenAPI Client Generation
 
@@ -110,14 +112,10 @@ cd apps/platform_django && pnpm openapi-ts
 
 ### Database Considerations
 
-Each worktree has its own isolated PostgreSQL database via docker-compose:
+Each worktree gets its own database on the shared Postgres, created by `just up`:
 
 - **Migrations**: Run `just manage migrate` in each worktree
 - **Testing**: pytest uses a separate test database (safe to run in parallel)
-
-### Dependencies
-
-- `jq` required for port registry management: `brew install jq`
 
 ## Architecture Rules (CRITICAL)
 

@@ -58,7 +58,6 @@ def test_boots_and_serves_a_request_with_no_redis(db):
         "POSTGRES_DB": postgres["NAME"],
         "POSTGRES_USER": postgres["USER"],
         "POSTGRES_PASSWORD": postgres["PASSWORD"],
-        "USE_DOCKER": "no",
         "PYTHONPATH": str(BASE_DIR),
     }
     result = subprocess.run(  # noqa: S603

@@ -22,7 +22,7 @@ Run tests matching a pattern::
 
 With Docker::
 
-    docker compose run --rm django pytest
+    uv run pytest
 
 Isolated Library Tests
 ^^^^^^^^^^^^^^^^^^^^^^

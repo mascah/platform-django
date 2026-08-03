@@ -221,19 +221,7 @@ replace_in_files "platform-django" "$KEBAB"
 ok "All replacements complete."
 
 # ---------------------------------------------------------------------------
-# Step 4: Set project port offset for multi-project isolation
-# ---------------------------------------------------------------------------
-info "Setting project port offset..."
-
-# Derive a deterministic offset from the project name (range 0-980, step 20)
-PORT_HASH=$(echo -n "$SNAKE" | cksum | cut -d' ' -f1)
-NEW_OFFSET=$(( (PORT_HASH % 50) * 20 ))
-
-"${SED_INPLACE[@]}" "s/^PROJECT_PORT_OFFSET=.*/PROJECT_PORT_OFFSET=$NEW_OFFSET/" .env.example
-ok "PROJECT_PORT_OFFSET=$NEW_OFFSET (derived from project name)"
-
-# ---------------------------------------------------------------------------
-# Step 5: Clean up build artifacts with stale references
+# Step 4: Clean up build artifacts with stale references
 # ---------------------------------------------------------------------------
 info "Cleaning build artifacts..."
 

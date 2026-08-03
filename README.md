@@ -33,7 +33,7 @@ just up              # Start Docker stack
 just down            # Stop Docker stack
 just logs            # View container logs
 just manage <cmd>    # Run manage.py in container
-just shell           # Open shell in Django container
+just serve           # Run Django on this worktree's port
 pnpm dev             # Run Vite dev servers
 ```
 
