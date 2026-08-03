@@ -97,6 +97,9 @@ records them in ``.env``; an existing value is never moved, so re-running is saf
    * - ``PROJECT_SLUG``
      - No
      - Names this project's database, cache key prefix and Celery queue. Defaults to the checkout's directory name, so a second copy of the template does not land on the first's database. The backing services are shared across projects, not just worktrees.
+   * - ``PROJECT_DISPLAY_NAME``
+     - No
+     - What a user reads: page titles, the navigation brand, the landing page, the API schema title, the from-address on an email. Defaults to ``PROJECT_SLUG`` made readable. Quote the value --- it is the one variable here that usually contains a space.
    * - ``POSTGRES_DB``
      - No
      - ``{PROJECT_SLUG}_{worktree}`` in a worktree, ``{PROJECT_SLUG}`` in the main checkout.

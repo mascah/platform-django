@@ -50,6 +50,12 @@ and adopt more structure as complexity warrants it.
 
 .. toctree::
    :maxdepth: 2
+   :caption: Deployment
+
+   7-deployment/tiers
+
+.. toctree::
+   :maxdepth: 2
    :caption: Development Workflow
 
    5-ai-development/claude-code-workflow

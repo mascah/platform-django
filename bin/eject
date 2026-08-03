@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Eject this project from the template it was made from. One way.
+
+While a project is still connected to the template, identity is data and nothing
+is renamed, so an improvement is an ordinary merge in either direction
+(ADR-0006). This is the documented exit from that arrangement, for a project
+that has outgrown it: it renames what the template brought, drops the template
+remote, and deletes itself.
+
+Run it when you have decided you will never merge with the template again.
+Until then the rename buys nothing and costs you the ability to.
+
+Usage:
+    bin/eject <new_name> [display name]
+
+    bin/eject acme_app
+    bin/eject acme_app "ACME Rocket Sled"
+
+The environment contract is deliberately left in place. PROJECT_SLUG and
+PROJECT_DISPLAY_NAME are ordinary configuration rather than template
+scaffolding — a mature project running several environments wants them more,
+not less. Only their defaults move to the new name.
+"""
+
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+TEMPLATE_SNAKE = "platform_django"
+TEMPLATE_KEBAB = "platform-django"
+TEMPLATE_DISPLAY = "Platform Django"
+
+# Lockfiles are regenerated rather than rewritten — one edited by hand no longer
+# describes what actually resolved. The eject script and its test are removed
+# outright, so rewriting them first would be work thrown away.
+REMOVE = ["bin/eject", "tests/test_eject.py"]
+SKIP = {"uv.lock", "pnpm-lock.yaml", *REMOVE}
+
+# The kebab form is also how the template's own repository is named, so an
+# occurrence behind a slash (`mascah/platform-django`, a clone URL) or in front
+# of `-template` points at the template rather than naming this project. Those
+# must survive the rename, or eject would mint URLs that look right and 404.
+NAMES_THIS_PROJECT = re.compile(rf"(?<!/){re.escape(TEMPLATE_KEBAB)}(?!-template)")
+NAMES_THE_TEMPLATE = re.compile(
+    rf"/{re.escape(TEMPLATE_KEBAB)}|{re.escape(TEMPLATE_KEBAB)}-template"
+)
+
+
+# uv and pnpm write straight to the terminal, so unbuffered output is what keeps
+# this script's own progress in the order it actually happened.
+sys.stdout.reconfigure(line_buffering=True)
+
+
+def fail(message: str) -> None:
+    print(f"error: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args], capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def normalise(raw: str) -> str:
+    """Reduce any spelling of a name to the snake_case a Python package needs."""
+    slug = re.sub(r"[\s-]+", "_", raw.strip().lower())
+    return re.sub(r"_+", "_", slug).strip("_")
+
+
+def rewrite(text: str, slug: str, kebab: str, display: str) -> str:
+    text = text.replace(TEMPLATE_SNAKE, slug)
+    text = text.replace(TEMPLATE_DISPLAY, display)
+    return NAMES_THIS_PROJECT.sub(kebab, text)
+
+
+def main() -> None:
+    if not 1 <= len(sys.argv) - 1 <= 2:
+        fail('usage: bin/eject <new_name> [display name]')
+
+    slug = normalise(sys.argv[1])
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", slug):
+        fail(f"{sys.argv[1]!r} does not reduce to a usable package name (got {slug!r})")
+    if slug == TEMPLATE_SNAKE:
+        fail(f"already named {TEMPLATE_SNAKE}; nothing to eject to")
+
+    kebab = slug.replace("_", "-")
+    # Defaults to the slug made readable, the same rule config/env.py applies.
+    display = sys.argv[2] if len(sys.argv) == 3 else slug.replace("_", " ").title()
+
+    root = Path(git("rev-parse", "--show-toplevel"))
+    if git("status", "--porcelain"):
+        fail("working tree is not clean — eject's only undo is `git reset --hard`")
+
+    print(f"Ejecting {TEMPLATE_SNAKE} → {slug} ({display})\n")
+
+    # --- Rename what the template brought ---------------------------------
+    for source, destination in (
+        (root / TEMPLATE_SNAKE, root / slug),
+        (root / "apps" / TEMPLATE_SNAKE, root / "apps" / slug),
+        (
+            root / slug / "templates" / "apps" / f"{TEMPLATE_SNAKE}.html",
+            root / slug / "templates" / "apps" / f"{slug}.html",
+        ),
+    ):
+        if source.exists():
+            git("mv", str(source), str(destination))
+            print(f"  moved  {source.relative_to(root)} → {destination.relative_to(root)}")
+
+    # --- Rewrite the tracked files (paths are post-move) -------------------
+    changed = 0
+    kept: list[str] = []
+
+    for relative in git("ls-files").splitlines():
+        if relative in SKIP:
+            continue
+
+        path = root / relative
+        try:
+            original = path.read_text()
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue  # binary, or a path git knows about and the disk does not
+
+        for number, line in enumerate(original.splitlines(), start=1):
+            if NAMES_THE_TEMPLATE.search(line):
+                kept.append(f"{relative}:{number}: {line.strip()}")
+
+        updated = rewrite(original, slug, kebab, display)
+        if updated != original:
+            path.write_text(updated)
+            changed += 1
+
+    print(f"  rewrote {changed} file(s)")
+
+    # --- Cut the tie -------------------------------------------------------
+    remotes = git("remote").split()
+    if "template" in remotes:
+        git("remote", "remove", "template")
+        print("  removed the 'template' remote")
+
+    if "origin" in remotes and TEMPLATE_KEBAB in git("remote", "get-url", "origin"):
+        print("  ! origin still points at the template — repoint or remove it")
+
+    # --- Regenerate what describes the rename ------------------------------
+    for present, tool, command in (
+        ("pyproject.toml", "uv", ["uv", "lock"]),
+        ("package.json", "pnpm", ["pnpm", "install", "--lockfile-only"]),
+    ):
+        if (root / present).exists() and shutil.which(tool):
+            subprocess.run(command, cwd=root, check=False)
+
+    removed = [path for path in REMOVE if (root / path).exists()]
+    git("rm", "--quiet", *removed)
+    print(f"  removed {', '.join(removed)} — no meaning here now\n")
+
+    if kept:
+        print("Left alone, because they point at the template rather than name this project:")
+        for reference in kept:
+            print(f"  {reference}")
+        print()
+
+    print(
+        "Review:  git diff HEAD\n"
+        "Undo:    git reset --hard\n"
+        "\n"
+        "Then, by hand:\n"
+        "  - .env is not tracked, so it still holds the old display name, and a\n"
+        "    PROJECT_SLUG naming the database you already have. Change the\n"
+        "    display name freely; changing the slug points you at a new, empty\n"
+        "    database\n"
+        f"  - cd apps/{slug} && pnpm openapi-ts   (the client's import paths moved)\n"
+        "  - README.md — making a project from the template, and staying\n"
+        "    connected to it, no longer describe this repository\n"
+        "  - docs/agents/issue-tracker.md — points at the template's tracker\n"
+        "  - docs/adr/0006 and 0007 are history now rather than policy; leave\n"
+        "    them as the record of why this project is shaped the way it is"
+    )
+
+
+if __name__ == "__main__":
+    main()

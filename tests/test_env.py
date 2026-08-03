@@ -4,6 +4,7 @@ import pytest
 
 from config.env import cache_config
 from config.env import database_url
+from config.env import project_display_name
 from config.env import project_slug
 from config.env import redis_url
 from config.env import task_always_eager
@@ -94,6 +95,21 @@ def test_cache_uses_redis_when_configured():
 def test_project_slug_falls_back_when_unset():
     assert project_slug({"PROJECT_SLUG": "acme_app"}) == "acme_app"
     assert project_slug({}) == "app"
+
+
+def test_project_display_name_is_separate_from_the_slug():
+    assert (
+        project_display_name(
+            {"PROJECT_SLUG": "acme_app", "PROJECT_DISPLAY_NAME": "ACME Rocket Sled"}
+        )
+        == "ACME Rocket Sled"
+    )
+
+
+def test_project_display_name_falls_back_to_a_readable_slug():
+    """A clone that set only the slug must not read as the template."""
+    assert project_display_name({"PROJECT_SLUG": "acme_app"}) == "Acme App"
+    assert project_display_name({"PROJECT_SLUG": "acme-app"}) == "Acme App"
 
 
 def test_cache_keys_are_namespaced_by_project():

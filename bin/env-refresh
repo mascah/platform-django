@@ -9,7 +9,9 @@
 # and Redis — the database name, the Redis index, and the two application ports
 # — are computed on first write. .env is itself the record of what was
 # allocated: siblings are read out of their own .env files, so there is no
-# registry to go stale and nothing to clean up.
+# registry to go stale and nothing to clean up. Ports are additionally probed,
+# because a sibling's .env only knows what this project handed out and the
+# machine is shared with everything else running on it.
 #
 # Usage: bin/env-refresh [--force] [--reallocate]
 #   --force       Discard existing values and regenerate from the template
@@ -124,11 +126,21 @@ values_claimed_by_siblings() {
   done < <(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
 }
 
-# The lowest value at or above $2 that no sibling claims for key $1.
+# Whether anything on this machine is listening on port $1. bash's own /dev/tcp
+# rather than lsof or nc, neither of which is installed everywhere this runs.
+port_is_free() {
+  ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+# The lowest value at or above $2 that no sibling claims for key $1. Passing a
+# third argument also probes the candidate: a sibling's .env says a port is
+# spoken for before anything listens on it, and a bound port says so even when
+# no sibling of ours claims it — another project, or something unrelated.
 allocate() {
-  local key="$1" candidate="$2" claimed
+  local key="$1" candidate="$2" probe="${3:-}" claimed
   claimed=$(values_claimed_by_siblings "$key")
-  while grep -qxF "$candidate" <<<"$claimed"; do
+  while grep -qxF "$candidate" <<<"$claimed" ||
+    { [[ -n "$probe" ]] && ! port_is_free "$candidate"; }; do
     candidate=$((candidate + 1))
   done
   echo "$candidate"
@@ -146,8 +158,8 @@ if [[ "$COMPUTED_REDIS_DB" -gt 15 ]]; then
   exit 1
 fi
 
-COMPUTED_DJANGO_PORT=$(allocate DJANGO_PORT 8000)
-COMPUTED_VITE_PORT=$(allocate VITE_PORT 5173)
+COMPUTED_DJANGO_PORT=$(allocate DJANGO_PORT 8000 probe)
+COMPUTED_VITE_PORT=$(allocate VITE_PORT 5173 probe)
 
 # Used in place of the template default when a key is written for the first
 # time. An existing value always wins, so re-running never moves a worktree.

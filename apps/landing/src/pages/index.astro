@@ -1,14 +1,24 @@
 ---
 import Layout from '@/layouts/Layout.astro';
 import { Button } from '@workspace/ui/components/button';
+
+// Project identity is data: the template is never renamed, so the name a user
+// reads comes from the environment rather than from this file. The fallback
+// matches project_display_name() in config/env.py, so a clone that set only the
+// slug reads the same here as it does server-side.
+const projectDisplayName =
+  import.meta.env.PROJECT_DISPLAY_NAME ||
+  (import.meta.env.PROJECT_SLUG || 'app')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (character: string) => character.toUpperCase());
 ---
 
-<Layout title="Platform Django">
+<Layout title={projectDisplayName}>
   <main class="container mx-auto px-4 py-16">
     <!-- Hero Section -->
     <section class="flex flex-col items-center justify-center py-20 text-center">
       <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">
-        Platform Django
+        {projectDisplayName}
       </h1>
       <p class="mt-6 max-w-2xl text-lg text-muted-foreground">
         This is the way.
@@ -63,7 +73,9 @@ import { Button } from '@workspace/ui/components/button';
   <!-- Footer -->
   <footer class="border-t py-8">
     <div class="container mx-auto px-4 text-center text-sm text-muted-foreground">
-      <p>&copy; {new Date().getFullYear()} Platform Django. All rights reserved.</p>
+      <p>
+        &copy; {new Date().getFullYear()} {projectDisplayName}. All rights reserved.
+      </p>
     </div>
   </footer>
 </Layout>

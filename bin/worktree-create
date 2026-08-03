@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# bin/worktree-create — Claude Code WorktreeCreate hook
+# bin/worktree-create — create a worktree that is ready to run
 # =============================================================================
-# Called automatically when `claude --worktree <name>` is invoked.
+# Sits behind Claude Code's WorktreeCreate hook, and takes the same job from a
+# shell for harnesses without that trigger:
+#
+#   bin/worktree-create feature-name
 #
 # A worktree needs no stack of its own: one Postgres and one Redis serve the
 # machine, and the worktree isolates by database name and Redis index. Only the
@@ -10,8 +13,11 @@
 # and writes it into the worktree's .env, which is the record of what it took —
 # there is no registry.
 #
-# Contract:
-#   stdin:  JSON with { name, cwd, session_id, hook_event_name }
+# Dependency installation is started but not waited on, so the path is reported
+# as soon as the workspace exists and work can begin while uv and pnpm finish.
+#
+# Contract when run as a hook:
+#   stdin:  JSON with { intended_worktree_name, parent_worktree_path, ... }
 #   stdout: ONLY the absolute path to the created worktree
 #   stderr: All logging/progress output
 # =============================================================================
@@ -21,36 +27,48 @@ set -euo pipefail
 log() { echo "$@" >&2; }
 
 # ---------------------------------------------------------------------------
-# Parse JSON input from stdin
+# What to call it, and which checkout it belongs to
 # ---------------------------------------------------------------------------
-INPUT=$(cat)
-NAME=$(echo "$INPUT" | jq -r '.name')
-CWD=$(echo "$INPUT" | jq -r '.cwd')
+if [[ $# -gt 0 ]]; then
+  NAME="$1"
+  PARENT="$PWD"
+else
+  INPUT=$(cat)
+  NAME=$(jq -r '.intended_worktree_name // empty' <<<"$INPUT")
+  PARENT=$(jq -r '.parent_worktree_path // .cwd // empty' <<<"$INPUT")
+  # Claude Code allows an unnamed worktree, and the session it belongs to is the
+  # only thing distinguishing it.
+  SESSION=$(jq -r '.session_id // empty' <<<"$INPUT")
+  NAME="${NAME:-session-${SESSION:0:8}}"
+fi
 
-if [[ -z "$NAME" || "$NAME" == "null" ]]; then
-  log "Error: 'name' field missing from input"
+if [[ -z "$NAME" ]]; then
+  log "Error: no worktree name given, and none could be derived"
   exit 1
 fi
 
-if [[ -z "$CWD" || "$CWD" == "null" ]]; then
-  log "Error: 'cwd' field missing from input"
+# Worktrees are created beside each other under the main checkout, whether the
+# request came from there or from another worktree.
+MAIN=$(git -C "${PARENT:-$PWD}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
+if [[ -z "$MAIN" ]]; then
+  log "Error: ${PARENT:-$PWD} is not a git checkout"
   exit 1
 fi
 
-WORKTREE_DIR="$CWD/.claude/worktrees/$NAME"
-BRANCH_NAME="worktree-$NAME"
+WORKTREE_DIR="$MAIN/.claude/worktrees/$NAME"
+BRANCH="worktree-$NAME"
 
 # ---------------------------------------------------------------------------
 # Create the git worktree
 # ---------------------------------------------------------------------------
-mkdir -p "$CWD/.claude/worktrees"
+mkdir -p "$MAIN/.claude/worktrees"
 
-if git -C "$CWD" show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
-  git -C "$CWD" worktree add "$WORKTREE_DIR" "$BRANCH_NAME" >/dev/null 2>&1
-  log "Checked out existing branch: $BRANCH_NAME"
+if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  git -C "$MAIN" worktree add "$WORKTREE_DIR" "$BRANCH" >&2
+  log "Checked out existing branch: $BRANCH"
 else
-  git -C "$CWD" worktree add -b "$BRANCH_NAME" "$WORKTREE_DIR" >/dev/null 2>&1
-  log "Created new branch: $BRANCH_NAME"
+  git -C "$MAIN" worktree add -b "$BRANCH" "$WORKTREE_DIR" >&2
+  log "Created new branch: $BRANCH"
 fi
 
 WORKTREE_ABS_PATH="$(cd "$WORKTREE_DIR" && pwd)"
@@ -58,29 +76,42 @@ WORKTREE_ABS_PATH="$(cd "$WORKTREE_DIR" && pwd)"
 # ---------------------------------------------------------------------------
 # Environment file
 # ---------------------------------------------------------------------------
-# Seed from the parent checkout so hand-edited values — API keys, a real secret
+# Seed from the main checkout so hand-edited values — API keys, a real secret
 # key — carry over, then --reallocate takes a fresh database, Redis index and
 # port pair rather than inheriting the parent's and colliding with it.
-log "Setting up .env..."
+log "Allocating a database, Redis index and ports..."
 
 for file in ".env" ".npmrc"; do
-  if [[ -f "$CWD/$file" ]]; then
-    cp "$CWD/$file" "$WORKTREE_DIR/$file"
+  if [[ -f "$MAIN/$file" ]]; then
+    cp "$MAIN/$file" "$WORKTREE_DIR/$file"
   fi
 done
 
-("$WORKTREE_DIR/bin/env-refresh" --reallocate) >&2
+"$WORKTREE_DIR/bin/env-refresh" --reallocate >&2
+
+# A worktree is a path mise has never seen, and mise silently ignores an
+# untrusted config — which would leave every command in here reading the main
+# checkout's environment instead of this one's.
+if command -v mise >/dev/null; then
+  mise trust --quiet "$WORKTREE_DIR/mise.toml" || true
+fi
 
 # ---------------------------------------------------------------------------
-# Install dependencies
+# Install dependencies, without blocking
 # ---------------------------------------------------------------------------
-log "Installing dependencies..."
-(cd "$WORKTREE_DIR" && uv sync 2>&1 && pnpm install 2>&1) >&2 || {
-  log "Warning: Dependency install had issues (continuing)"
-}
+# Detached from this process so it survives the hook returning. The log is where
+# to look when an import fails a minute from now.
+INSTALL_LOG="$WORKTREE_DIR/.install.log"
+
+nohup bash -c '
+  cd "$1" || exit 1
+  [[ -f pyproject.toml ]] && uv sync
+  [[ -f package.json ]] && pnpm install
+' _ "$WORKTREE_ABS_PATH" >"$INSTALL_LOG" 2>&1 </dev/null &
 
 log ""
 log "Worktree ready: $NAME"
+log "Dependencies installing in the background — see .install.log"
 (cd "$WORKTREE_DIR" && just ports) >&2 || true
 log ""
 

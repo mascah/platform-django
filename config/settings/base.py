@@ -9,6 +9,7 @@ from csp.constants import NONCE
 
 from config.env import cache_config
 from config.env import database_url
+from config.env import project_display_name
 from config.env import project_slug
 from config.env import redis_url
 from config.env import task_always_eager
@@ -24,6 +25,14 @@ READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=True)
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
     env.read_env(str(BASE_DIR / ".env"))
+
+# PROJECT IDENTITY
+# ------------------------------------------------------------------------------
+# What distinguishes one project made from this template from another. Nothing
+# the template ships is renamed, so these two values are the whole difference:
+# the slug names resources, and the display name is what a user reads.
+PROJECT_SLUG = project_slug(env.ENVIRON)
+PROJECT_DISPLAY_NAME = project_display_name(env.ENVIRON)
 
 # GENERAL
 # ------------------------------------------------------------------------------
@@ -211,6 +220,7 @@ TEMPLATES = [
                 "django.template.context_processors.static",
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
+                "config.context_processors.project",
                 "platform_django.users.context_processors.allauth_settings",
             ],
         },
@@ -312,7 +322,7 @@ CELERY_TASK_ALWAYS_EAGER = task_always_eager(env.ENVIRON)
 # serves every project on a development machine and two of them queueing onto
 # "celery" would each run the other's tasks. Workers consume this queue by
 # default, so nothing has to name it.
-CELERY_TASK_DEFAULT_QUEUE = project_slug(env.ENVIRON)
+CELERY_TASK_DEFAULT_QUEUE = PROJECT_SLUG
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
 CELERY_BROKER_URL = REDIS_URL
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#redis-backend-use-ssl
@@ -388,7 +398,7 @@ CORS_URLS_REGEX = r"^/api/.*$"
 # By Default swagger ui is available only to admin user(s). You can change permission classes to change that
 # See more configuration options at https://drf-spectacular.readthedocs.io/en/latest/settings.html#settings
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Platform Django API",
+    "TITLE": f"{PROJECT_DISPLAY_NAME} API",
     "DESCRIPTION": "API endpoint documentation",
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],

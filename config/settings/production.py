@@ -10,6 +10,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from config.settings.base import *  # noqa: F403
 from config.settings.base import DATABASES
 from config.settings.base import INSTALLED_APPS
+from config.settings.base import PROJECT_DISPLAY_NAME
 from config.settings.base import SPECTACULAR_SETTINGS
 from config.settings.base import env
 
@@ -73,14 +74,14 @@ STORAGES = {
 # https://docs.djangoproject.com/en/dev/ref/settings/#default-from-email
 DEFAULT_FROM_EMAIL = env(
     "DJANGO_DEFAULT_FROM_EMAIL",
-    default="Platform Django <noreply@example.com>",
+    default=f"{PROJECT_DISPLAY_NAME} <noreply@example.com>",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#server-email
 SERVER_EMAIL = env("DJANGO_SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-subject-prefix
 EMAIL_SUBJECT_PREFIX = env(
     "DJANGO_EMAIL_SUBJECT_PREFIX",
-    default="[Platform Django] ",
+    default=f"[{PROJECT_DISPLAY_NAME}] ",
 )
 ACCOUNT_EMAIL_SUBJECT_PREFIX = EMAIL_SUBJECT_PREFIX
 
