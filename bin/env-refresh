@@ -269,6 +269,30 @@ EOF
 fi
 
 # -----------------------------------------------------------------------------
+# Carry the worktree's host ports into .env as primitives
+# -----------------------------------------------------------------------------
+# Django composes DATABASE_URL/REDIS_URL from the primitives in .env, and never
+# reads .env.local. Without this, a host command in an offset worktree would
+# compose port 5432 and connect to the main worktree's database.
+if [[ -f .env.local ]]; then
+  sync_port_primitive() {
+    local primitive="$1" source_key="$2" value
+    value=$(get_value_from_file "$source_key" .env.local)
+    [[ -z "$value" ]] && return 0
+
+    if key_exists_in_file "$primitive" .env; then
+      sed -i.bak "s/^${primitive}=.*/${primitive}=${value}/" .env && rm -f .env.bak
+    else
+      echo "${primitive}=${value}" >> .env
+    fi
+  }
+
+  sync_port_primitive POSTGRES_PORT DOCKER_HOST_POSTGRES_PORT
+  sync_port_primitive REDIS_PORT DOCKER_HOST_REDIS_PORT
+  success "Synced host port primitives into .env"
+fi
+
+# -----------------------------------------------------------------------------
 # Allow direnv
 # -----------------------------------------------------------------------------
 if command -v direnv &>/dev/null && [[ -f .envrc ]]; then

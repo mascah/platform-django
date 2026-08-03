@@ -18,6 +18,11 @@ services:
       - ./.env
     environment:
       - VITE_PLATFORM_DJANGO_PORT=${VITE_PLATFORM_DJANGO_PORT:-5173}
+      # The .env primitives are host-shaped; inside the network they are service names.
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     ports:
       - '${DOCKER_HOST_DJANGO_PORT:-8000}:8000'
     command: /start

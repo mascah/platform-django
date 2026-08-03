@@ -48,8 +48,16 @@ Database
      - Required
      - Description
    * - ``DATABASE_URL``
-     - Yes
-     - PostgreSQL connection string. Format: ``postgres://user:pass@host:port/dbname``
+     - No
+     - PostgreSQL connection string. Format: ``postgres://user:pass@host:port/dbname``.
+       When set it is used unchanged; otherwise it is composed from the primitives below
+       by ``config/env.py``.
+   * - ``POSTGRES_DB`` / ``POSTGRES_USER`` / ``POSTGRES_PASSWORD``
+     - Yes (unless ``DATABASE_URL`` is set)
+     - Primitives the connection string is composed from.
+   * - ``POSTGRES_HOST`` / ``POSTGRES_PORT``
+     - No
+     - Default: ``localhost`` and ``5432``. Containers override these with service names.
 
 Redis and Caching
 ^^^^^^^^^^^^^^^^^
@@ -62,8 +70,12 @@ Redis and Caching
      - Required
      - Description
    * - ``REDIS_URL``
-     - Yes
-     - Redis connection string. Format: ``redis://host:port/db``
+     - No
+     - Redis connection string. Format: ``redis://host:port/db``. When set it is used
+       unchanged; otherwise it is composed from the primitives below.
+   * - ``REDIS_HOST`` / ``REDIS_PORT`` / ``REDIS_DB``
+     - No
+     - Default: ``localhost``, ``6379`` and ``0``.
    * - ``CELERY_BROKER_URL``
      - No
      - Celery broker URL. Defaults to ``REDIS_URL`` if not set.
