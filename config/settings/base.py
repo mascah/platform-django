@@ -393,7 +393,7 @@ SPECTACULAR_SETTINGS = {
 DJANGO_VITE = {
     "platform_django": {
         "dev_mode": DEBUG,
-        "dev_server_port": env.int("VITE_PLATFORM_DJANGO_PORT", default=5173),
+        "dev_server_port": env.int("VITE_PORT", default=5173),
         "static_url_prefix": "platform_django",
         "manifest_path": str(
             BASE_DIR

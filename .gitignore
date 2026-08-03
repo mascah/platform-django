@@ -282,7 +282,6 @@ apps/*/.astro/
 # Environment
 .envrc
 .env
-.env.local
 .env.backup
 
 # ruff
@@ -297,9 +296,6 @@ apps/*/.astro/
 # Claude local settings
 CLAUDE.local.md
 .claude/worktrees/
-
-# Worktree port registry
-.worktree-ports.json
 
 # Temp
 tmp/

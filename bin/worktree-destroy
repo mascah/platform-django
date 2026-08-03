@@ -3,7 +3,12 @@
 # bin/worktree-destroy — Claude Code WorktreeRemove hook
 # =============================================================================
 # Called automatically when exiting a Claude Code worktree session.
-# Stops Docker containers, releases port allocation, and removes the worktree.
+#
+# There are no containers to stop and no port registry to release: the worktree
+# shared the machine's backing services, and its .env was the only record of the
+# ports and Redis index it held, so removing the worktree frees them.
+#
+# Its database on the shared Postgres is left behind — dropping it is #68.
 #
 # Contract:
 #   stdin:  JSON with { worktree_path, session_id, hook_event_name }
@@ -12,9 +17,6 @@
 # =============================================================================
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# All output goes to stderr
-# ---------------------------------------------------------------------------
 log() { echo "$@" >&2; }
 
 # ---------------------------------------------------------------------------
@@ -30,59 +32,17 @@ fi
 
 log "Removing worktree: $WORKTREE_PATH"
 
-# ---------------------------------------------------------------------------
-# Find main worktree and registry
-# ---------------------------------------------------------------------------
-MAIN_WORKTREE=$(git -C "$WORKTREE_PATH" worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //' || true)
+MAIN_WORKTREE=$(git -C "$WORKTREE_PATH" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
 
 if [[ -z "$MAIN_WORKTREE" ]]; then
   log "Warning: Could not determine main worktree"
   MAIN_WORKTREE=$(dirname "$(dirname "$(dirname "$WORKTREE_PATH")")")
 fi
 
-REGISTRY_FILE="$MAIN_WORKTREE/.worktree-ports.json"
-
 # ---------------------------------------------------------------------------
-# Stop Docker containers (best-effort)
-# ---------------------------------------------------------------------------
-if [[ -d "$WORKTREE_PATH" && -f "$WORKTREE_PATH/docker-compose.yml" ]]; then
-  log "Stopping Docker containers..."
-  if [[ -f "$WORKTREE_PATH/.env.local" ]]; then
-    (cd "$WORKTREE_PATH" && docker compose --env-file .env.local down 2>&1) >&2 || {
-      log "Warning: Could not stop Docker containers (may not be running)"
-    }
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# Release port allocation from registry
-# ---------------------------------------------------------------------------
-if [[ -f "$REGISTRY_FILE" ]] && command -v jq &>/dev/null; then
-  FREED_PORT=$(jq -r --arg path "$WORKTREE_PATH" \
-    '.allocations | to_entries[] | select(.value.worktree_path == $path) | .key' \
-    "$REGISTRY_FILE" 2>/dev/null || true)
-
-  if [[ -n "$FREED_PORT" ]]; then
-    jq --arg path "$WORKTREE_PATH" \
-       '.allocations |= with_entries(select(.value.worktree_path != $path))' \
-       "$REGISTRY_FILE" > "$REGISTRY_FILE.tmp" && mv "$REGISTRY_FILE.tmp" "$REGISTRY_FILE"
-    log "Released port $FREED_PORT"
-  else
-    log "No port allocation found for this worktree"
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# Extract branch name from worktree path
-# ---------------------------------------------------------------------------
-WORKTREE_NAME=$(basename "$WORKTREE_PATH")
-BRANCH_NAME="worktree-$WORKTREE_NAME"
-
-# ---------------------------------------------------------------------------
-# Remove git worktree
+# Remove the git worktree
 # ---------------------------------------------------------------------------
 if [[ -d "$WORKTREE_PATH" ]]; then
-  log "Removing git worktree..."
   git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH" --force 2>&1 >&2 || {
     log "Warning: git worktree remove failed, cleaning up manually"
     rm -rf "$WORKTREE_PATH"
@@ -93,6 +53,8 @@ fi
 # ---------------------------------------------------------------------------
 # Delete the branch
 # ---------------------------------------------------------------------------
+BRANCH_NAME="worktree-$(basename "$WORKTREE_PATH")"
+
 if git -C "$MAIN_WORKTREE" show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
   log "Deleting branch: $BRANCH_NAME"
   git -C "$MAIN_WORKTREE" branch -D "$BRANCH_NAME" 2>&1 >&2 || {

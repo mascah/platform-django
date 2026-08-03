@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # =============================================================================
-# bin/env-refresh — Refresh .env from its .example template
+# bin/env-refresh — generate .env, the one environment file
 # =============================================================================
-# Merges new variables from .env.example into .env without overwriting
-# manually-set values. Backs up the previous .env before writing.
+# Merges .env.example into .env: keys added to the template appear, values
+# edited by hand are kept, so this is safe to run at any time.
 #
-# Usage: bin/env-refresh [--force]
-#   --force  Overwrite .env completely from .env.example (no merge)
+# The values that must differ between worktrees sharing this machine's Postgres
+# and Redis — the database name, the Redis index, and the two application ports
+# — are computed on first write. .env is itself the record of what was
+# allocated: siblings are read out of their own .env files, so there is no
+# registry to go stale and nothing to clean up.
+#
+# Usage: bin/env-refresh [--force] [--reallocate]
+#   --force       Discard existing values and regenerate from the template
+#   --reallocate  Keep hand-edited values, but claim a fresh database, Redis
+#                 index and port pair — what a new worktree needs after
+#                 inheriting the .env it was copied from
 # =============================================================================
 
 set -euo pipefail
@@ -16,17 +25,6 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
-# -----------------------------------------------------------------------------
-# Port configuration
-# -----------------------------------------------------------------------------
-# Tolerate git being unusable — bootstrap runs this on machines where the
-# checkout is not a repository git will touch (a container mount, an archive).
-MAIN_WORKTREE=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //' || true)
-REGISTRY_FILE="${MAIN_WORKTREE:-$PROJECT_DIR}/.worktree-ports.json"
-
-# -----------------------------------------------------------------------------
-# Output helpers
-# -----------------------------------------------------------------------------
 info()    { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
 success() { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
 warn()    { printf "\033[1;33m!\033[0m %s\n" "$1"; }
@@ -35,18 +33,22 @@ warn()    { printf "\033[1;33m!\033[0m %s\n" "$1"; }
 # Parse arguments
 # -----------------------------------------------------------------------------
 FORCE=false
+REALLOCATE=false
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=true ;;
+    --reallocate) REALLOCATE=true ;;
     -h|--help)
-      echo "Usage: bin/env-refresh [--force]"
+      echo "Usage: bin/env-refresh [--force] [--reallocate]"
       echo ""
-      echo "Refresh .env and .env.local from their .example templates."
+      echo "Generate .env from .env.example."
       echo ""
       echo "Options:"
-      echo "  --force  Overwrite .env entirely from .env.example (no merge)"
+      echo "  --force       Discard existing values and regenerate from the template"
+      echo "  --reallocate  Keep hand-edited values, but claim a fresh database,"
+      echo "                Redis index and port pair"
       echo ""
-      echo "Without --force, performs an additive merge:"
+      echo "By default:"
       echo "  - New variables from .env.example are added"
       echo "  - Existing values in .env are preserved"
       echo "  - Variables removed from .env.example are kept as orphans"
@@ -54,227 +56,197 @@ for arg in "$@"; do
       ;;
     *)
       echo "Unknown argument: $arg"
-      echo "Usage: bin/env-refresh [--force]"
+      echo "Usage: bin/env-refresh [--force] [--reallocate]"
       exit 1
       ;;
   esac
 done
 
-# -----------------------------------------------------------------------------
-# Validate templates exist
-# -----------------------------------------------------------------------------
 if [[ ! -f .env.example ]]; then
   echo "Error: .env.example not found in $PROJECT_DIR"
   exit 1
 fi
 
 # -----------------------------------------------------------------------------
-# Helper: extract KEY from a KEY=VALUE line
+# Reading KEY=VALUE files
 # -----------------------------------------------------------------------------
 extract_key() {
   echo "$1" | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'
 }
 
-# Helper: get the value for a key from a file (first match)
+# An absent key — or an absent file — is a normal answer here, not a failure.
 get_value_from_file() {
-  local key="$1"
-  local file="$2"
-  grep -m1 "^${key}=" "$file" 2>/dev/null | sed "s/^${key}=//"
+  local key="$1" file="$2"
+  grep -m1 "^${key}=" "$file" 2>/dev/null | sed "s/^${key}=//" || return 0
 }
 
-# Helper: check if a key exists in a file
 key_exists_in_file() {
-  local key="$1"
-  local file="$2"
+  local key="$1" file="$2"
   grep -q "^${key}=" "$file" 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------
-# Refresh .env
+# Which worktree is this?
+# -----------------------------------------------------------------------------
+# The main worktree is the first `git worktree list` reports. Tolerate git being
+# unusable — bootstrap runs this on checkouts git will not touch (a container
+# mount, an unpacked archive), which are the main worktree by default.
+WORKTREE_NAME=""
+MAIN_WORKTREE=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
+if [[ -n "$MAIN_WORKTREE" && ! "$PROJECT_DIR" -ef "$MAIN_WORKTREE" ]]; then
+  WORKTREE_NAME=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '_' | sed 's/_*$//')
+fi
+
+# -----------------------------------------------------------------------------
+# Allocation, with the sibling .env files as the record
+# -----------------------------------------------------------------------------
+# Values every other worktree of this repository currently claims for $1.
+values_claimed_by_siblings() {
+  local key="$1" path
+  while read -r path; do
+    if [[ -f "$path/.env" ]] && [[ ! "$path" -ef "$PROJECT_DIR" ]]; then
+      get_value_from_file "$key" "$path/.env"
+    fi
+  done < <(git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p')
+}
+
+# The lowest value at or above $2 that no sibling claims for key $1.
+allocate() {
+  local key="$1" candidate="$2" claimed
+  claimed=$(values_claimed_by_siblings "$key")
+  while grep -qxF "$candidate" <<<"$claimed"; do
+    candidate=$((candidate + 1))
+  done
+  echo "$candidate"
+}
+
+PROJECT_SLUG=$(get_value_from_file PROJECT_SLUG .env)
+PROJECT_SLUG=${PROJECT_SLUG:-$(get_value_from_file PROJECT_SLUG .env.example)}
+
+# The slug names the database; a worktree gets its own beside it. Postgres
+# truncates identifiers at 63 bytes, which would silently alias two long
+# worktree names onto one database.
+COMPUTED_POSTGRES_DB="${PROJECT_SLUG}${WORKTREE_NAME:+_$WORKTREE_NAME}"
+COMPUTED_POSTGRES_DB="${COMPUTED_POSTGRES_DB:0:63}"
+
+COMPUTED_REDIS_DB=$(allocate REDIS_DB 0)
+if [[ "$COMPUTED_REDIS_DB" -gt 15 ]]; then
+  echo "Error: no free Redis index — one Redis serves 16, and all are claimed."
+  exit 1
+fi
+
+COMPUTED_DJANGO_PORT=$(allocate DJANGO_PORT 8000)
+COMPUTED_VITE_PORT=$(allocate VITE_PORT 5173)
+
+# Used in place of the template default when a key is written for the first
+# time. An existing value always wins, so re-running never moves a worktree.
+computed_value() {
+  case "$1" in
+    POSTGRES_DB) echo "$COMPUTED_POSTGRES_DB" ;;
+    REDIS_DB)    echo "$COMPUTED_REDIS_DB" ;;
+    DJANGO_PORT) echo "$COMPUTED_DJANGO_PORT" ;;
+    VITE_PORT)   echo "$COMPUTED_VITE_PORT" ;;
+  esac
+}
+
+# -----------------------------------------------------------------------------
+# Merge
 # -----------------------------------------------------------------------------
 info "Refreshing .env from .env.example..."
 
-if [[ ! -f .env ]]; then
-  # No existing .env — simple copy
-  cp .env.example .env
-  success "Created .env from .env.example"
-elif [[ "$FORCE" == "true" ]]; then
-  # Force mode — backup and overwrite
+if [[ -f .env ]]; then
   cp .env .env.backup
-  cp .env.example .env
-  success "Overwrote .env from .env.example (backup: .env.backup)"
+  if [[ "$FORCE" == "true" ]]; then
+    : > .env
+  fi
 else
-  # Additive merge: walk .env.example, preserve existing values
-  cp .env .env.backup
+  : > .env
+fi
 
-  TEMP_ENV=$(mktemp)
-  SEEN_KEYS=$(mktemp)
+TEMP_ENV=$(mktemp)
+SEEN_KEYS=$(mktemp)
 
-  NEW_VARS=()
-  PRESERVED_VARS=()
+NEW_VARS=()
+PRESERVED_VARS=()
 
-  # Process .env.example line by line
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    key=$(extract_key "$line")
+while IFS= read -r line || [[ -n "$line" ]]; do
+  key=$(extract_key "$line")
 
-    if [[ -z "$key" ]]; then
-      # Comment or blank line — pass through
-      echo "$line" >> "$TEMP_ENV"
-    else
-      # Track this key as seen
-      echo "$key" >> "$SEEN_KEYS"
-
-      if key_exists_in_file "$key" .env; then
-        old_value=$(get_value_from_file "$key" .env)
-
-        if echo "$old_value" | grep -q '!!!SET'; then
-          # Old value is still a placeholder — use template default
-          echo "$line" >> "$TEMP_ENV"
-          NEW_VARS+=("$key")
-        else
-          # Preserve existing value
-          echo "${key}=${old_value}" >> "$TEMP_ENV"
-          PRESERVED_VARS+=("$key")
-        fi
-      else
-        # New variable — use template default
-        echo "$line" >> "$TEMP_ENV"
-        NEW_VARS+=("$key")
-      fi
-    fi
-  done < .env.example
-
-  # Find orphaned keys (in old .env but not in .env.example)
-  ORPHAN_KEYS=()
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    key=$(extract_key "$line")
-    if [[ -n "$key" ]] && ! grep -q "^${key}$" "$SEEN_KEYS"; then
-      ORPHAN_KEYS+=("$key")
-    fi
-  done < .env
-
-  # Append orphaned keys
-  if [[ ${#ORPHAN_KEYS[@]} -gt 0 ]]; then
-    echo "" >> "$TEMP_ENV"
-    echo "# -----------------------------------------------------------------------------" >> "$TEMP_ENV"
-    echo "# Custom overrides (not in .env.example)" >> "$TEMP_ENV"
-    echo "# -----------------------------------------------------------------------------" >> "$TEMP_ENV"
-    for orphan_key in "${ORPHAN_KEYS[@]}"; do
-      orphan_value=$(get_value_from_file "$orphan_key" .env)
-      echo "${orphan_key}=${orphan_value}" >> "$TEMP_ENV"
-    done
+  if [[ -z "$key" ]]; then
+    # Comment or blank line — pass through
+    echo "$line" >> "$TEMP_ENV"
+    continue
   fi
 
-  mv "$TEMP_ENV" .env
-  rm -f "$SEEN_KEYS"
+  echo "$key" >> "$SEEN_KEYS"
+  old_value=$(get_value_from_file "$key" .env)
+  computed=$(computed_value "$key")
 
-  # Print summary
-  if [[ ${#NEW_VARS[@]} -gt 0 ]]; then
-    success "Added ${#NEW_VARS[@]} new variable(s):"
-    for var in "${NEW_VARS[@]}"; do
-      echo "    + $var"
-    done
+  keep_existing=true
+  if ! key_exists_in_file "$key" .env; then
+    keep_existing=false
+  elif grep -q '!!!SET' <<<"$old_value"; then
+    # Still the template's placeholder rather than a real value.
+    keep_existing=false
+  elif [[ "$REALLOCATE" == "true" && -n "$computed" ]]; then
+    keep_existing=false
   fi
 
-  if [[ ${#PRESERVED_VARS[@]} -gt 0 ]]; then
-    success "Preserved ${#PRESERVED_VARS[@]} existing value(s)"
-  fi
-
-  if [[ ${#ORPHAN_KEYS[@]} -gt 0 ]]; then
-    warn "Carried forward ${#ORPHAN_KEYS[@]} orphaned variable(s) not in .env.example:"
-    for var in "${ORPHAN_KEYS[@]}"; do
-      echo "    ~ $var"
-    done
-  fi
-
-  if [[ ${#NEW_VARS[@]} -eq 0 && ${#ORPHAN_KEYS[@]} -eq 0 ]]; then
-    success ".env is up to date (backup: .env.backup)"
+  if [[ "$keep_existing" == "true" ]]; then
+    echo "${key}=${old_value}" >> "$TEMP_ENV"
+    PRESERVED_VARS+=("$key")
+  elif [[ -n "$computed" ]]; then
+    echo "${key}=${computed}" >> "$TEMP_ENV"
+    NEW_VARS+=("$key")
   else
-    success ".env refreshed (backup: .env.backup)"
+    echo "$line" >> "$TEMP_ENV"
+    NEW_VARS+=("$key")
   fi
-fi
+done < .env.example
 
-# -----------------------------------------------------------------------------
-# Ensure .env.local exists (port configuration)
-# -----------------------------------------------------------------------------
-if [[ -f .env.local ]]; then
-  success ".env.local already exists"
-else
-  info "Creating .env.local..."
-
-  # Read project port offset from .env (set per-project to avoid multi-project conflicts)
-  PROJECT_PORT_OFFSET=$(grep '^PROJECT_PORT_OFFSET=' .env 2>/dev/null | cut -d'=' -f2)
-  PROJECT_PORT_OFFSET=${PROJECT_PORT_OFFSET:-0}
-  BASE_PORT=$((8000 + PROJECT_PORT_OFFSET))
-
-  CURRENT_PATH="$(pwd)"
-  WORKTREE_OFFSET=0
-  WORKTREE_ID="main"
-  BRANCH_NAME=""
-
-  # Try to look up this directory in the worktree port registry
-  if command -v jq &>/dev/null && [[ -f "$REGISTRY_FILE" ]]; then
-    # Search registry for an entry matching our current path
-    MATCH=$(jq -r --arg path "$CURRENT_PATH" '
-      .allocations | to_entries[] |
-      select(.value.worktree_path == $path) |
-      "\(.key) \(.value.branch)"
-    ' "$REGISTRY_FILE" 2>/dev/null || true)
-
-    if [[ -n "$MATCH" ]]; then
-      DJANGO_PORT=$(echo "$MATCH" | cut -d' ' -f1)
-      BRANCH_NAME=$(echo "$MATCH" | cut -d' ' -f2-)
-      WORKTREE_OFFSET=$((DJANGO_PORT - BASE_PORT))
-      WORKTREE_ID=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '_' | sed 's/_*$//')
-      info "Found worktree in registry: branch=$BRANCH_NAME, port=$DJANGO_PORT (worktree offset $WORKTREE_OFFSET)"
-    fi
-  elif ! command -v jq &>/dev/null; then
-    warn "jq not installed — using main branch defaults for .env.local"
+# Keys in .env that the template no longer carries
+ORPHAN_KEYS=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  key=$(extract_key "$line")
+  if [[ -n "$key" ]] && ! grep -q "^${key}$" "$SEEN_KEYS"; then
+    ORPHAN_KEYS+=("$key")
   fi
+done < .env
 
-  TOTAL_OFFSET=$((PROJECT_PORT_OFFSET + WORKTREE_OFFSET))
-
-  cat > .env.local << EOF
-# Port configuration (auto-generated by bin/env-refresh)
-# Worktree: ${BRANCH_NAME:-main branch}
-# Project port offset: ${PROJECT_PORT_OFFSET}, worktree offset: ${WORKTREE_OFFSET}
-
-# Docker host port mappings (for external access to containers)
-DOCKER_HOST_DJANGO_PORT=$((8000 + TOTAL_OFFSET))
-DOCKER_HOST_POSTGRES_PORT=$((5432 + TOTAL_OFFSET))
-DOCKER_HOST_REDIS_PORT=$((6379 + TOTAL_OFFSET))
-DOCKER_HOST_MAILPIT_PORT=$((8025 + TOTAL_OFFSET))
-DOCKER_HOST_FLOWER_PORT=$((5555 + TOTAL_OFFSET))
-
-# App config (Vite runs on host)
-VITE_PLATFORM_DJANGO_PORT=$((5173 + TOTAL_OFFSET))
-
-# Docker container naming
-WORKTREE_ID=${WORKTREE_ID}
-EOF
-  success "Created .env.local (project offset $PROJECT_PORT_OFFSET + worktree offset $WORKTREE_OFFSET, WORKTREE_ID=$WORKTREE_ID)"
+if [[ ${#ORPHAN_KEYS[@]} -gt 0 ]]; then
+  {
+    echo ""
+    echo "# -----------------------------------------------------------------------------"
+    echo "# Custom overrides (not in .env.example)"
+    echo "# -----------------------------------------------------------------------------"
+  } >> "$TEMP_ENV"
+  for orphan_key in "${ORPHAN_KEYS[@]}"; do
+    echo "${orphan_key}=$(get_value_from_file "$orphan_key" .env)" >> "$TEMP_ENV"
+  done
 fi
 
-# -----------------------------------------------------------------------------
-# Carry the worktree's host ports into .env as primitives
-# -----------------------------------------------------------------------------
-# Django composes DATABASE_URL/REDIS_URL from the primitives in .env, and never
-# reads .env.local. Without this, a host command in an offset worktree would
-# compose port 5432 and connect to the main worktree's database.
-if [[ -f .env.local ]]; then
-  sync_port_primitive() {
-    local primitive="$1" source_key="$2" value
-    value=$(get_value_from_file "$source_key" .env.local)
-    [[ -z "$value" ]] && return 0
+mv "$TEMP_ENV" .env
+rm -f "$SEEN_KEYS"
 
-    if key_exists_in_file "$primitive" .env; then
-      sed -i.bak "s/^${primitive}=.*/${primitive}=${value}/" .env && rm -f .env.bak
-    else
-      echo "${primitive}=${value}" >> .env
-    fi
-  }
-
-  sync_port_primitive POSTGRES_PORT DOCKER_HOST_POSTGRES_PORT
-  sync_port_primitive REDIS_PORT DOCKER_HOST_REDIS_PORT
-  success "Synced host port primitives into .env"
+# -----------------------------------------------------------------------------
+# Summary
+# -----------------------------------------------------------------------------
+if [[ ${#NEW_VARS[@]} -gt 0 ]]; then
+  success "Set ${#NEW_VARS[@]} variable(s):"
+  for var in "${NEW_VARS[@]}"; do
+    echo "    + ${var}=$(get_value_from_file "$var" .env)"
+  done
 fi
+
+if [[ ${#PRESERVED_VARS[@]} -gt 0 ]]; then
+  success "Preserved ${#PRESERVED_VARS[@]} existing value(s)"
+fi
+
+if [[ ${#ORPHAN_KEYS[@]} -gt 0 ]]; then
+  warn "Carried forward ${#ORPHAN_KEYS[@]} variable(s) not in .env.example:"
+  for var in "${ORPHAN_KEYS[@]}"; do
+    echo "    ~ $var"
+  done
+fi
+
+success ".env ready for ${WORKTREE_NAME:-the main worktree}: database $(get_value_from_file POSTGRES_DB .env), Django on port $(get_value_from_file DJANGO_PORT .env)"

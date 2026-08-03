@@ -1,81 +1,66 @@
+# =============================================================================
+# The backing services, shared by every worktree on this machine
+# =============================================================================
+# Django, Vite and Celery are application processes and run on the host, so
+# nothing here is built from this repository — these are stock images.
+#
+# The project name is fixed rather than derived from the directory, so `just up`
+# from any worktree addresses the same containers instead of starting a stack of
+# its own. Worktrees isolate by database name and Redis index, not by port, so
+# these ports are the same everywhere and never need offsetting.
+#
+# Compose reads .env from the project directory on its own; no --env-file flag.
+# =============================================================================
+
+name: dev-backing-services
+
 volumes:
-  platform_django_local_postgres_data: {}
-  platform_django_local_redis_data: {}
+  postgres_data: {}
+  redis_data: {}
 
 services:
-  django: &django
-    build:
-      context: .
-      dockerfile: ./docker/local/django/Dockerfile
-    image: platform_django_${WORKTREE_ID:-main}_django
-    container_name: platform_django_${WORKTREE_ID:-main}_django
-    depends_on:
-      - postgres
-      - redis
-    volumes:
-      - .:/app:z
-    env_file:
-      - ./.env
-    environment:
-      - VITE_PLATFORM_DJANGO_PORT=${VITE_PLATFORM_DJANGO_PORT:-5173}
-      # The .env primitives are host-shaped; inside the network they are service names.
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    ports:
-      - '${DOCKER_HOST_DJANGO_PORT:-8000}:8000'
-    command: /start
-
   postgres:
     image: docker.io/postgres:18
-    container_name: platform_django_${WORKTREE_ID:-main}_postgres
+    restart: unless-stopped
     volumes:
-      - platform_django_local_postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql
+    environment:
+      # Only the credentials are shared. Each worktree's own database is created
+      # against this instance by `just up`, so the image initialises nothing
+      # beyond the `postgres` database it always has.
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
     ports:
-      - '${DOCKER_HOST_POSTGRES_PORT:-5432}:5432'
-    env_file:
-      - ./.env
-
-  mailpit:
-    image: docker.io/axllent/mailpit:latest
-    container_name: platform_django_${WORKTREE_ID:-main}_mailpit
-    profiles: [mail]
-    ports:
-      - '${DOCKER_HOST_MAILPIT_PORT:-8025}:8025'
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: docker.io/redis:8.8
-    container_name: platform_django_${WORKTREE_ID:-main}_redis
+    restart: unless-stopped
     volumes:
-      - platform_django_local_redis_data:/data
+      - redis_data:/data
     ports:
-      - '${DOCKER_HOST_REDIS_PORT:-6379}:6379'
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  celeryworker:
-    <<: *django
-    container_name: platform_django_${WORKTREE_ID:-main}_celeryworker
-    profiles: [celery]
-    depends_on:
-      - redis
-      - postgres
-    ports: []
-    command: /start-celeryworker
-
-  celerybeat:
-    <<: *django
-    container_name: platform_django_${WORKTREE_ID:-main}_celerybeat
-    profiles: [celery]
-    depends_on:
-      - redis
-      - postgres
-    ports: []
-    command: /start-celerybeat
-
-  flower:
-    <<: *django
-    container_name: platform_django_${WORKTREE_ID:-main}_flower
-    profiles: [flower]
+  mailpit:
+    image: docker.io/axllent/mailpit:latest
+    restart: unless-stopped
     ports:
-      - '${DOCKER_HOST_FLOWER_PORT:-5555}:5555'
-    command: /start-flower
+      # SMTP for the application, then the web interface.
+      - '1025:1025'
+      - '8025:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 5s
+      timeout: 5s
+      retries: 10
