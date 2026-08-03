@@ -1,7 +1,9 @@
 Service Layer Patterns
 ======================
 
-Business logic organization using services (writes) and selectors (reads), based on the `HackSoft Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_.
+Business logic lives in services (writes) and selectors (reads). The `HackSoft
+Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_ is an
+influence on this pattern, not a specification it must satisfy.
 
 .. note::
 
@@ -14,23 +16,16 @@ Business logic organization using services (writes) and selectors (reads), based
 Progressive Complexity
 ----------------------
 
-Not every module needs the full service/selector pattern from day one. We follow a **progressive complexity** approach: start simple, and extract structure as your module grows.
+Not every module needs the full split from day one. Start at the first rung
+that holds, and climb when the code asks you to --- each rung is reachable from
+the one below it by moving code, not by rewriting the module.
 
-Tier 1: Start Simple
-^^^^^^^^^^^^^^^^^^^^^
+Start simple
+^^^^^^^^^^^^
 
-For prototyping, new modules, or simple CRUD endpoints, it is perfectly fine to put business logic directly in your views. This keeps things fast and easy to iterate on:
+For a prototype or a simple CRUD endpoint, business logic in the view is fine:
 
 .. code-block:: python
-
-    # platform_django/tasks/api/views.py
-    from rest_framework.views import APIView
-    from rest_framework.response import Response
-    from rest_framework import serializers, status
-
-    class TaskCreateInputSerializer(serializers.Serializer):
-        title = serializers.CharField(max_length=200)
-        description = serializers.CharField(required=False, default="")
 
     class TaskCreateView(APIView):
         def post(self, request):
@@ -39,317 +34,252 @@ For prototyping, new modules, or simple CRUD endpoints, it is perfectly fine to 
 
             # Business logic inline --- fine for simple cases
             task = Task.objects.create(
-                title=serializer.validated_data["title"],
-                description=serializer.validated_data["description"],
+                **serializer.validated_data,
                 created_by=request.user,
                 status="open",
             )
 
-            return Response({"id": task.id, "title": task.title}, status=status.HTTP_201_CREATED)
+            return Response({"id": task.id}, status=status.HTTP_201_CREATED)
 
-There is nothing wrong with this approach for simple modules. It is easy to read, easy to test with API-level tests, and easy to change.
+Easy to read, easy to test through the API, easy to change.
 
-Tier 2: Extract When Needed
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Extract when needed
+^^^^^^^^^^^^^^^^^^^
 
-When views start to feel heavy, extract logic into service and selector functions. Signs that it is time:
+Move logic into ``services.py`` and ``selectors.py`` when:
 
-- A view has more than ~50 lines of business logic
-- The same logic is needed in multiple views, a management command, or a Celery task
-- Testing the logic requires setting up full HTTP requests
-- You need to share read queries with access control across multiple endpoints
-
-At this point, create ``services.py`` and/or ``selectors.py`` in your module and move the logic there:
+- a view carries more than a screenful of business logic;
+- the same logic is needed by a second view, a management command or a Celery
+  task;
+- testing the logic requires setting up an HTTP request to reach it;
+- a read query with access control has to be shared across endpoints.
 
 .. code-block:: python
 
     # platform_django/tasks/services.py
-    def task_create(*, title: str, description: str, created_by: "User") -> Task:
-        task = Task(
+    def task_create(*, title: str, description: str, created_by_id: int) -> Task:
+        return Task.objects.create(
             title=title,
             description=description,
-            created_by=created_by,
+            created_by_id=created_by_id,
             status="open",
         )
-        task.full_clean()
-        task.save()
-        return task
 
     # platform_django/tasks/api/views.py
     class TaskCreateView(APIView):
         def post(self, request):
             serializer = TaskCreateInputSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            task = task_create(**serializer.validated_data, created_by=request.user)
+            task = task_create(
+                **serializer.validated_data,
+                created_by_id=request.user.pk,
+            )
             return Response(TaskSerializer(task).data, status=status.HTTP_201_CREATED)
 
-Tier 3: Full Pattern
-^^^^^^^^^^^^^^^^^^^^^
+The full pattern
+^^^^^^^^^^^^^^^^
 
-For production-grade modules with complex business logic, cross-module communication, or strict domain rules, use the complete services/selectors pattern described in the rest of this document. This includes:
+A module with real domain rules, cross-module callers or strict invariants uses
+everything below: keyword-only signatures, DTOs at the boundary, atomic
+transactions around multi-step writes, access-scoped selectors, and a public
+interface distinguished from internal helpers.
 
-- Keyword-only arguments on all service functions
-- DTOs for cross-module returns
-- Atomic transactions wrapping multi-step mutations
-- Selectors with access control
-- Separation of public API from internal helpers
-
-When to Adopt
-^^^^^^^^^^^^^
-
-Use this decision guide:
-
-.. code-block:: text
-
-    Is this a new module or prototype?
-           |
-           +---- YES --> Start with Tier 1 (logic in views)
-           |
-           +---- NO --> Does the module have complex business rules,
-                        cross-module calls, or reused logic?
-                              |
-                              +---- YES --> Use Tier 3 (full pattern)
-                              |
-                              +---- NO  --> Use Tier 2 (extract key functions)
-
-The key insight is that you can always refactor from Tier 1 to Tier 3 later. Starting simple avoids premature abstraction while still having a clear path forward when complexity demands it.
+You can always climb from the first rung to the last. Starting simple avoids
+premature abstraction; keeping the write in one place is what makes the climb a
+move rather than a rewrite.
 
 The Core Principle
 ------------------
 
-When you are ready for the full pattern, the split is straightforward:
+**Services** handle writes: create, update or delete data, enforce business
+rules on mutations, and trigger side effects.
 
-**Services** handle write operations:
-
-- Create, update, or delete data
-- Trigger side effects (emails, queued tasks, external APIs)
-- Enforce business rules on mutations
-
-**Selectors** handle read operations:
-
-- Query and filter data
-- Apply access control to queries
-- Return data without side effects
+**Selectors** handle reads: query and filter data, apply access control, and
+return without writing or causing an externally visible side effect.
 
 .. code-block:: python
 
-    # platform_django/users/services.py - Write operations
-    def user_create(*, email: str, name: str) -> User:
-        """Create a new user with profile."""
-        user = User(email=email)
-        user.full_clean()
-        user.save()
-
-        profile_create(user=user, name=name)
-        send_welcome_email.delay(user_id=user.id)
-
+    # platform_django/users/services.py --- write operations
+    def user_update_profile(*, user_id: int, name: str | None = None) -> User:
+        user = User.objects.get(id=user_id)
+        if name is not None:
+            user.name = name
+            user.save(update_fields=["name"])
         return user
 
-    # platform_django/users/selectors.py - Read operations
-    def user_list(*, fetched_by: User) -> QuerySet[User]:
-        """Return users visible to the requesting user."""
-        if fetched_by.is_staff:
-            return User.objects.all()
-        return User.objects.filter(is_active=True)
+    # platform_django/users/selectors.py --- read operations
+    def user_list_visible_to(viewer_id: int) -> QuerySet[User]:
+        return User.objects.filter(id=viewer_id).order_by("id")
 
-Where Business Logic Should NOT Live
+Where Business Logic Should Not Live
 ------------------------------------
 
-**Not in views** --- Views handle HTTP only:
+**Not in views** --- views handle HTTP. They call a selector for a read and a
+service for a write, and translate the result into a response.
 
-.. code-block:: python
+**Not in serializers** --- serializers validate and shape data, they do not
+mutate it. A serializer's ``create()`` or ``update()`` that writes puts the
+mutation somewhere no other caller can reach.
 
-    # GOOD - view delegates to service
-    class UserCreateView(APIView):
-        def post(self, request):
-            serializer = UserCreateInputSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            user = user_create(**serializer.validated_data)
-            return Response(UserSerializer(user).data)
+**Not in signals** --- signals hide the entry point to a workflow and create
+implicit coupling. Call the service explicitly. Framework or vendor hooks with
+no explicit entry point are the exception.
 
-**Not in serializers** --- Serializers validate, not mutate:
+**Not in model** ``save()`` --- business behaviour in ``save()`` fires on every
+write path, including migrations and fixtures.
 
-.. code-block:: python
-
-    # GOOD - serializer only validates
-    class UserCreateInputSerializer(serializers.Serializer):
-        email = serializers.EmailField()
-        name = serializers.CharField(max_length=100)
-
-**Not in signals** --- Signals create hidden coupling. Call the service explicitly.
-
-**Not in model save()** --- Overriding ``save()`` for business logic makes models unpredictable.
-
-Model Properties: The Exception
+Model properties: the exception
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Model properties are fine for simple, non-relational computations:
+A property computing over the model's own local fields is fine:
 
 .. code-block:: python
 
-    class User(models.Model):
-        first_name = models.CharField(max_length=100)
-        last_name = models.CharField(max_length=100)
+    @property
+    def full_name(self) -> str:
+        return f"{self.first_name} {self.last_name}"
 
-        @property
-        def full_name(self) -> str:
-            return f"{self.first_name} {self.last_name}"
-
-Move it to a selector if it queries related objects or has complex business rules.
+Move it to a selector once it queries related objects or crosses rows.
 
 Writing Services
 ----------------
 
-Function Signature Pattern
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+Naming and signatures
+^^^^^^^^^^^^^^^^^^^^^
 
-Use keyword-only arguments to force explicit parameter names:
+Name public operations entity-first, action-second --- ``user_update_profile``,
+``order_place`` --- so that everything about one entity sorts and greps
+together. Use keyword-only parameters when an operation takes two or more
+inputs:
 
 .. code-block:: python
 
-    def user_create(*, email: str, name: str) -> User:
+    def user_update_profile(*, user_id: int, name: str | None = None) -> User:
         ...
 
-Return DTOs for Cross-Module Communication
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+These are consistency preferences. Neither is worth a review finding on its own
+without a concrete readability, compatibility or misuse risk.
 
-When services are called from other modules, return data transfer objects:
+Saving
+^^^^^^
 
-.. code-block:: python
-
-    from dataclasses import dataclass
-
-    @dataclass(frozen=True)
-    class UserDTO:
-        id: int
-        email: str
-        name: str
-
-    def user_get_by_id(user_id: int) -> UserDTO | None:
-        """Public interface for other modules."""
-        try:
-            user = User.objects.get(id=user_id)
-            return UserDTO(id=user.id, email=user.email, name=user.name)
-        except User.DoesNotExist:
-            return None
-
-For internal module use, returning model instances is fine.
-
-.. note::
-
-   DTOs are **required** for cross-module service calls. This keeps internal model
-   structures hidden and prevents tight coupling. See :doc:`module-dependencies` for
-   which direction a cross-module call may run in.
-
-Atomic Transactions
-^^^^^^^^^^^^^^^^^^^
-
-Wrap services that make multiple changes:
+Save an existing row with ``update_fields``. A bare ``save()`` writes every
+column, including ones another request may have changed since this instance was
+loaded:
 
 .. code-block:: python
 
-    from django.db import transaction
+    user.name = name
+    user.save(update_fields=["name"])
+
+Call ``full_clean()`` where model validation is deliberately part of that write
+path and its errors are useful to the caller. It is not a universal
+pre-save requirement.
+
+Transactions and side effects
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Wrap a service that makes several changes in ``transaction.atomic()``. Do not
+wrap every single-row write by default:
+
+.. code-block:: python
 
     @transaction.atomic
-    def order_create(*, user_id: int, items: list[dict]) -> Order:
-        order = Order.objects.create(user_id=user_id, status="pending")
+    def order_place(*, owner_id: int, items: list[dict]) -> Order:
+        order = Order.objects.create(owner_id=owner_id, status="pending")
         for item in items:
             OrderItem.objects.create(order=order, **item)
         return order
 
+Schedule anything that must not happen on a rolled-back write --- an email, a
+queued task, an external call --- from ``transaction.on_commit()``, capturing
+primitives rather than the ORM instance. See :doc:`module-dependencies`.
+
+Returning across a boundary
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Within the module, returning model instances is fine. A service or selector
+called from another module returns primitives or a stable DTO, so that the
+caller does not come to depend on the model's field list:
+
+.. code-block:: python
+
+    @dataclass(frozen=True)
+    class UserProfileDTO:
+        id: int
+        email: str
+        name: str
+
 Writing Selectors
 -----------------
 
-Filtering with Access Control
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Access control
+^^^^^^^^^^^^^^
+
+Scope the base query once, and derive detail lookups from it. That keeps the
+not-found and forbidden behaviour identical on both paths instead of growing a
+second permission rule later:
 
 .. code-block:: python
 
-    def order_list(*, fetched_by: User) -> QuerySet[Order]:
-        if fetched_by.is_staff:
-            return Order.objects.all()
-        return Order.objects.filter(user_id=fetched_by.id)
+    def order_list(*, fetched_by_id: int) -> QuerySet[Order]:
+        return Order.objects.filter(owner_id=fetched_by_id).order_by("id")
 
-    def order_get(*, order_id: int, fetched_by: User) -> Order:
-        return order_list(fetched_by=fetched_by).get(id=order_id)
+    def order_get(*, order_id: int, fetched_by_id: int) -> Order:
+        return order_list(fetched_by_id=fetched_by_id).get(id=order_id)
 
-Avoid N+1 Queries
-^^^^^^^^^^^^^^^^^
+Order any queryset a paginator will consume. An unordered queryset behind
+``LIMIT``/``OFFSET`` skips and duplicates rows between pages.
 
-.. code-block:: python
+Query shape
+^^^^^^^^^^^
 
-    def order_list_with_items(*, fetched_by: User) -> QuerySet[Order]:
-        return (
-            order_list(fetched_by=fetched_by)
-            .prefetch_related("items", "items__product")
-            .select_related("shipping_address")
-        )
+Add ``select_related`` and ``prefetch_related`` for relations the caller
+actually touches, and ``only``/``defer`` to drop expensive columns a list view
+never reads. Preload nothing speculatively --- the read path is the evidence.
 
-Common Pitfalls
----------------
+Batch across boundaries
+^^^^^^^^^^^^^^^^^^^^^^^
 
-N+1 queries across modules
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Without foreign keys (see :doc:`module-boundaries`), cross-module queries can multiply:
+Where a boundary uses identifiers rather than a relation (see
+:doc:`module-boundaries`), a per-row lookup becomes N+1 queries. Fetch once and
+join in memory:
 
 .. code-block:: python
 
-    # BAD - N+1 queries
-    def order_list_with_users(fetched_by: User) -> list[dict]:
-        orders = order_list(fetched_by=fetched_by)
-        return [
-            {"order": order, "user": user_get_by_id(order.user_id)}
-            for order in orders
-        ]
+    orders = list(order_list(fetched_by_id=viewer_id))
+    users_by_id = {u.id: u for u in user_get_many(ids=[o.owner_id for o in orders])}
 
-    # BETTER - batch fetch
-    def order_list_with_users(fetched_by: User) -> list[dict]:
-        orders = list(order_list(fetched_by=fetched_by))
-        user_ids = [o.user_id for o in orders]
-        users = user_get_by_ids(user_ids)
-        users_by_id = {u.id: u for u in users}
-        return [
-            {"order": order, "user": users_by_id.get(order.user_id)}
-            for order in orders
-        ]
+Public vs internal
+^^^^^^^^^^^^^^^^^^
 
-Public vs Internal Functions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Document which services are part of the module's public API:
-
-.. code-block:: python
-
-    # platform_django/users/services.py
-
-    # === PUBLIC API ===
-    def user_create(...): ...
-    def user_exists(user_id: int) -> bool: ...
-
-    # === INTERNAL ===
-    def _validate_email_domain(email: str) -> bool: ...
+Prefix internal helpers with an underscore. Everything without one is a
+contract another caller may depend on.
 
 Testing
 -------
 
-Services and selectors are plain functions, easy to unit test:
+Assert behaviour at the HTTP boundary, where it survives logic moving between a
+view and a service. Add focused service and selector tests for what that seam
+cannot see cheaply --- persistence, the access scope, the exception contract,
+and post-commit effects:
 
 .. code-block:: python
 
-    import pytest
-    from platform_django.users.services import user_create
-
     @pytest.mark.django_db
-    def test_user_create():
-        user = user_create(email="test@example.com", name="Test User")
-        assert user.email == "test@example.com"
-        assert user.profile.name == "Test User"
+    def test_user_update_profile_persists_the_new_name(user: User):
+        user_update_profile(user_id=user.pk, name="Ada Lovelace")
+
+        user.refresh_from_db()
+        assert user.name == "Ada Lovelace"
+
+``platform_django/users/tests/`` carries both shapes. See
+:doc:`/3-backend-guides/testing`.
 
 See Also
 --------
 
 - `HackSoft Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_
-- :doc:`module-boundaries` --- Enforcing boundaries between modules
-- :doc:`module-dependencies` --- Valid dependency patterns between modules
+- :doc:`module-boundaries` --- What the import contracts prove
+- :doc:`module-dependencies` --- Which direction a cross-module call may run
 - :doc:`event-driven` --- When a boundary justifies domain events
