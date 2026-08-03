@@ -2,8 +2,10 @@
 
 import pytest
 
+from config.env import cache_config
 from config.env import database_url
 from config.env import redis_url
+from config.env import task_always_eager
 
 PRIMITIVES = {
     "POSTGRES_HOST": "db.example.com",
@@ -66,5 +68,29 @@ def test_supplied_redis_url_wins():
     )
 
 
-def test_redis_url_defaults_to_localhost():
-    assert redis_url({}) == "redis://localhost:6379/0"
+def test_redis_url_defaults_port_and_index():
+    assert redis_url({"REDIS_HOST": "cache.example.com"}) == (
+        "redis://cache.example.com:6379/0"
+    )
+
+
+def test_redis_url_absent_when_nothing_configured():
+    assert redis_url({}) is None
+    assert redis_url({"REDIS_PORT": "6379", "REDIS_DB": "0"}) is None
+
+
+def test_cache_is_in_process_without_redis():
+    assert cache_config({}) == {
+        "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    }
+
+
+def test_cache_uses_redis_when_configured():
+    default = cache_config({"REDIS_HOST": "cache.example.com"})["default"]
+    assert default["BACKEND"] == "django_redis.cache.RedisCache"
+    assert default["LOCATION"] == "redis://cache.example.com:6379/0"
+
+
+def test_task_dispatch_is_eager_only_without_redis():
+    assert task_always_eager({}) is True
+    assert task_always_eager({"REDIS_URL": "redis://localhost:6379/0"}) is False
