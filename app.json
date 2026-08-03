@@ -1,0 +1,54 @@
+{
+  "name": "platform-django",
+  "description": "Provisioning a prototype: one command against this manifest. Buildpack order is frontend then Python, because the landing page is served by Django from collected static files. Graduating a tier is a diff to this file plus a scale command.",
+  "stack": "heroku-24",
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    },
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0"
+    }
+  ],
+  "env": {
+    "DJANGO_SETTINGS_MODULE": {
+      "description": "manage.py defaults to local settings, so the deploy has to say otherwise.",
+      "value": "config.settings.production"
+    },
+    "DJANGO_SECRET_KEY": {
+      "description": "Django's secret key.",
+      "generator": "secret"
+    },
+    "DJANGO_ADMIN_URL": {
+      "description": "Path the admin is mounted at. Generated per app so it is not guessable.",
+      "generator": "secret"
+    },
+    "DJANGO_ALLOWED_HOSTS": {
+      "description": "Hosts Django will answer for. The leading dot matches any subdomain; add your own domain when you attach one.",
+      "value": ".herokuapp.com"
+    },
+    "SENTRY_DSN": {
+      "description": "Optional. Error reporting is off while this is unset.",
+      "required": false
+    },
+    "MAILGUN_API_KEY": {
+      "description": "Optional. Without it, mail is written to the dyno log instead of being sent.",
+      "required": false
+    },
+    "MAILGUN_DOMAIN": {
+      "description": "Optional. The Mailgun sending domain, used only when MAILGUN_API_KEY is set.",
+      "required": false
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  }
+}
