@@ -212,7 +212,7 @@ dependencies = [
     "httpx>=0.28.1",
     "Pillow>=12.1.0",
     "posthog>=7.35.4",
-    "psycopg[binary]>=3.3.3",
+    "psycopg[binary]>=3.3.4",
     "python-slugify==8.0.4",
     "redis==7.2.1",
     "sentry-sdk>=2.66.1",
