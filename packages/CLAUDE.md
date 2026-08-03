@@ -1,5 +1,9 @@
 # Shared Packages (Turborepo)
 
+Everything here is consumed by more than one workspace member. Inspect the
+actual consumers before changing a component or a config — `pnpm lint` and
+`pnpm typecheck` run across all of them.
+
 ## Structure
 
 - `packages/ui/` — Shared UI components and theme
