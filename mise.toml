@@ -11,7 +11,17 @@
 # .python-version and provisions Python itself.
 #
 # pnpm is likewise absent — package.json's packageManager field pins it, and
-# corepack installs from there.
+# corepack installs from there. So is uv: it ships only from GitHub releases,
+# every machine that matters already has it (the cloud image, Homebrew, CI's
+# astral-sh/setup-uv), and bin/bootstrap installs it from Astral directly on the
+# rare machine that does not.
+#
+# Nothing here may resolve through GitHub's API. mise's default backend, aqua,
+# looks every pinned version up at api.github.com/repos/.../releases/tags/...,
+# which is unauthenticated and rate-limited at 60/hour PER IP. On any shared
+# egress — a cloud agent VM, a NAT'd CI runner — that budget is routinely spent
+# by other tenants, and the install fails through no fault of ours. The npm
+# registry has no such limit, and mise fetches Node from nodejs.org directly.
 # =============================================================================
 
 [settings]
@@ -19,9 +29,10 @@
 idiomatic_version_file_enable_tools = ["node"]
 
 [tools]
-uv = "0.11.14"
-just = "1.51.0"
-lefthook = "2.0.12"
+# npm rather than the default aqua backend — see the note above. Both are the
+# projects' own published packages, at the same versions aqua would resolve.
+"npm:rust-just" = "1.51.0"
+"npm:lefthook" = "2.0.12"
 
 [env]
 # Loaded for the shell and for `mise exec`, replacing direnv's dotenv. Django

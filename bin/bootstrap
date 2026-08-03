@@ -53,9 +53,13 @@ info "Installing the toolchain..."
 # The config is not in mise's trusted paths on a machine that has never seen
 # this checkout, and an untrusted config is silently ignored.
 "$MISE" trust --quiet "$PROJECT_DIR/mise.toml"
+
+# Node first, on its own: the other tools install from the npm registry and so
+# need a working node before mise can fetch them.
+"$MISE" install --yes node
 "$MISE" install --yes
 
-success "Toolchain installed: $("$MISE" exec -- node --version), uv $("$MISE" exec -- uv --version | cut -d' ' -f2)"
+success "Toolchain installed: node $("$MISE" exec -- node --version)"
 
 # Everything below runs through the pinned toolchain rather than whatever the
 # machine happens to have on PATH.
@@ -65,6 +69,18 @@ run() { "$MISE" exec -- "$@"; }
 # 3. Dependencies — Python and frontend
 # -----------------------------------------------------------------------------
 info "Installing Python dependencies..."
+
+# uv is not a mise tool: it ships only from GitHub releases, whose API is
+# rate-limited per IP and therefore unreliable behind shared egress. Every
+# machine that matters already carries it, and Astral's installer builds its
+# download URL directly rather than asking the API.
+if ! command -v uv &>/dev/null; then
+  info "Installing uv..."
+  UV_INSTALL_DIR="$(dirname "$MISE")" curl -fsSL https://astral.sh/uv/install.sh | sh
+  export PATH="$(dirname "$MISE"):$PATH"
+fi
+success "uv $(uv --version | cut -d' ' -f2)"
+
 # uv provisions the interpreter named by .python-version itself.
 run uv sync
 success "Python dependencies installed"

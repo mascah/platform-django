@@ -228,17 +228,27 @@ Required Tools
      - ``packageManager`` in ``package.json``, installed via corepack
    * - **uv**
      - Python package manager
-     - ``mise.toml``
+     - Not pinned --- ``bin/bootstrap`` uses whichever is on ``PATH``, and
+       installs the current release from Astral if there is none
    * - **just**
      - Command runner (like make)
-     - ``mise.toml``
+     - ``mise.toml``, from the npm registry
    * - **lefthook**
      - Git hooks for code quality
-     - ``mise.toml``
+     - ``mise.toml``, from the npm registry
 
 The two version files stay authoritative rather than being folded into
 ``mise.toml``, because the deployment platform reads the same files to choose
 the runtimes it builds with.
+
+Nothing in the toolchain resolves through GitHub's API. mise's default backend
+looks each pinned version up at ``api.github.com``, which is unauthenticated and
+rate-limited per IP, so on shared egress --- a cloud agent VM, a NAT'd CI runner
+--- installs fail for reasons that have nothing to do with this project. ``just``
+and ``lefthook`` therefore come from the npm registry, which has no such limit,
+and Node comes from ``nodejs.org`` directly. uv ships only from GitHub releases,
+so it is not a mise tool at all: every environment that matters already carries
+it, and Astral's installer builds its download URL without asking the API.
 
 Shell Configuration
 ^^^^^^^^^^^^^^^^^^^
