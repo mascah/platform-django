@@ -181,7 +181,7 @@ jobs:
       - name: Regenerate the client from the current schema
         run: |
           uv run python manage.py spectacular --file /tmp/openapi-schema.yaml
-          cd apps/platform_django && OPENAPI_SCHEMA=/tmp/openapi-schema.yaml pnpm openapi-ts
+          cd apps/platform_django && pnpm openapi-ts -i /tmp/openapi-schema.yaml
 
       - name: Fail if the committed client is out of date
         run: |

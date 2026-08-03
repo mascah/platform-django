@@ -59,9 +59,10 @@ right. Django does not have to be running and neither does the database.
 Regenerate after adding, changing or removing a serializer field; changing a
 view, route or `@extend_schema` annotation; or adding an `@action`.
 
-To generate against a server that is already up instead, set `OPENAPI_SCHEMA`
-to its schema URL — a worktree serves on its own port, so `just ports` is where
-that port comes from, not 8000.
+To generate against a server that is already up instead, pass its schema URL
+with `-i` — a worktree serves on its own port, so `just ports` is where that
+port comes from, not 8000. Without `-i` the generator falls back to the URL in
+`openapi-ts.config.ts`, which assumes port 8000.
 
 ## CI fails on a stale client
 
@@ -100,7 +101,7 @@ permissions where the change depends on them.
 ## Common misses
 
 - Hand-resolving the generated files in a merge instead of regenerating them.
-- Pointing `OPENAPI_SCHEMA` at port 8000 from a worktree that serves on another port.
+- Generating with no `-i` from a worktree that serves on a port other than 8000.
 - Editing generated files instead of the serializer behind them.
 - Treating generated types as runtime validation.
 - Re-enabling `readWrite` while `COMPONENT_SPLIT_REQUEST` is also on.

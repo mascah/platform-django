@@ -102,7 +102,7 @@ openapi:
     schema="$(mktemp -t openapi-schema.XXXXXX)"
     trap 'rm -f "$schema"' EXIT
     uv run python manage.py spectacular --file "$schema"
-    cd apps/platform_django && OPENAPI_SCHEMA="$schema" pnpm openapi-ts
+    cd apps/platform_django && pnpm openapi-ts -i "$schema"
 
 # === Documentation ===
 
