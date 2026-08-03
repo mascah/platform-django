@@ -1,101 +1,82 @@
+"""Views are exercised through the HTTP boundary, not by constructing them.
+
+These tests describe what a caller can observe: a status code, a redirect
+target, a persisted change. They do not import ``services`` or ``selectors``,
+so moving logic between a view and a service is a refactor rather than a test
+rewrite.
+"""
+
 from http import HTTPStatus
 
 import pytest
 from django.conf import settings
-from django.contrib import messages
-from django.contrib.auth.models import AnonymousUser
-from django.contrib.messages.middleware import MessageMiddleware
-from django.contrib.sessions.middleware import SessionMiddleware
-from django.http import HttpRequest
-from django.http import HttpResponseRedirect
-from django.test import RequestFactory
+from django.test import Client
 from django.urls import reverse
-from django.utils.translation import gettext_lazy as _
 
-from platform_django.users.forms import UserAdminChangeForm
 from platform_django.users.models import User
 from platform_django.users.tests.factories import UserFactory
-from platform_django.users.views import UserRedirectView
-from platform_django.users.views import UserUpdateView
-from platform_django.users.views import user_detail_view
 
 pytestmark = pytest.mark.django_db
 
 
-class TestUserUpdateView:
-    """
-    TODO:
-        extracting view initialization code as class-scoped fixture
-        would be great if only pytest-django supported non-function-scoped
-        fixture db access -- this is a work-in-progress for now:
-        https://github.com/pytest-dev/pytest-django/pull/258
-    """
-
-    def dummy_get_response(self, request: HttpRequest):
-        return None
-
-    def test_get_success_url(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-        request.user = user
-
-        view.request = request
-        assert view.get_success_url() == f"/users/{user.username}/"
-
-    def test_get_object(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-        request.user = user
-
-        view.request = request
-
-        assert view.get_object() == user
-
-    def test_form_valid(self, user: User, rf: RequestFactory):
-        view = UserUpdateView()
-        request = rf.get("/fake-url/")
-
-        # Add the session/message middleware to the request
-        SessionMiddleware(self.dummy_get_response).process_request(request)
-        MessageMiddleware(self.dummy_get_response).process_request(request)
-        request.user = user
-
-        view.request = request
-
-        # Initialize the form
-        form = UserAdminChangeForm()
-        form.cleaned_data = {}
-        form.instance = user
-        view.form_valid(form)
-
-        messages_sent = [m.message for m in messages.get_messages(request)]
-        assert messages_sent == [_("Information successfully updated")]
-
-
-class TestUserRedirectView:
-    def test_get_redirect_url(self, user: User, rf: RequestFactory):
-        view = UserRedirectView()
-        request = rf.get("/fake-url")
-        request.user = user
-
-        view.request = request
-        assert view.get_redirect_url() == f"/users/{user.username}/"
-
-
 class TestUserDetailView:
-    def test_authenticated(self, user: User, rf: RequestFactory):
-        request = rf.get("/fake-url/")
-        request.user = UserFactory()  # type: ignore[assignment]
-        response = user_detail_view(request, username=user.username)
+    def test_renders_for_an_authenticated_visitor(self, user: User, client: Client):
+        visitor: User = UserFactory()  # type: ignore[assignment]
+        client.force_login(visitor)
+
+        response = client.get(
+            reverse("users:detail", kwargs={"username": user.username}),
+        )
 
         assert response.status_code == HTTPStatus.OK
 
-    def test_not_authenticated(self, user: User, rf: RequestFactory):
-        request = rf.get("/fake-url/")
-        request.user = AnonymousUser()
-        response = user_detail_view(request, username=user.username)
-        login_url = reverse(settings.LOGIN_URL)
+    def test_redirects_an_anonymous_visitor_to_login(self, user: User, client: Client):
+        url = reverse("users:detail", kwargs={"username": user.username})
 
-        assert isinstance(response, HttpResponseRedirect)
+        response = client.get(url)
+
         assert response.status_code == HTTPStatus.FOUND
-        assert response.url == f"{login_url}?next=/fake-url/"
+        assert response["Location"] == f"{reverse(settings.LOGIN_URL)}?next={url}"
+
+
+class TestUserRedirectView:
+    def test_redirects_to_the_visitors_own_detail_page(
+        self, user: User, client: Client
+    ):
+        client.force_login(user)
+
+        response = client.get(reverse("users:redirect"))
+
+        assert response.status_code == HTTPStatus.FOUND
+        assert response["Location"] == f"/users/{user.username}/"
+
+
+class TestUserUpdateView:
+    def test_persists_the_new_name(self, user: User, client: Client):
+        client.force_login(user)
+
+        response = client.post(reverse("users:update"), {"name": "Ada Lovelace"})
+
+        assert response.status_code == HTTPStatus.FOUND
+        assert response["Location"] == f"/users/{user.username}/"
+        user.refresh_from_db()
+        assert user.name == "Ada Lovelace"
+
+    def test_reports_success(self, user: User, client: Client):
+        client.force_login(user)
+
+        response = client.post(
+            reverse("users:update"),
+            {"name": "Ada Lovelace"},
+            follow=True,
+        )
+
+        assert [str(m) for m in response.context["messages"]] == [
+            "Information successfully updated",
+        ]
+
+    def test_redirects_an_anonymous_visitor_to_login(self, client: Client):
+        response = client.post(reverse("users:update"), {"name": "Ada Lovelace"})
+
+        assert response.status_code == HTTPStatus.FOUND
+        assert response["Location"].startswith(reverse(settings.LOGIN_URL))

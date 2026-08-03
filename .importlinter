@@ -19,14 +19,47 @@ forbidden_modules =
 # =============================================================================
 # Contract 2: Users module internal layers (api -> services/selectors -> models)
 # =============================================================================
+# This is the gate that keeps a write out of a view: api and views may call
+# services and selectors, and never the reverse. A selector that imports a
+# service, or a service that imports a view, fails the build.
+#
+# tasks is parenthesised because the module ships no Celery task — an optional
+# layer keeps its position in the hierarchy declared for the project that adds
+# one, without the contract failing on a file that does not exist yet.
 [importlinter:contract:users-internal-layers]
 name = Users module internal layers
 type = layers
 layers =
     api
-    tasks
+    views
+    (tasks)
     services
     selectors
     models
 containers =
     platform_django.users
+
+# =============================================================================
+# Contract 3: The API viewset may not reach the ORM
+# =============================================================================
+# The layers contract above gates direction — a selector importing a service
+# fails. It cannot, on its own, catch a write reimplemented inside a view: a
+# view that queries or saves imports nothing a layers contract forbids. This
+# does. The viewset has no legitimate reason to name the model, so a query or a
+# save placed back in it fails the build.
+#
+# allow_indirect_imports keeps this about the viewset's own code. Reaching the
+# model *through* a selector, a service or a serializer is the point of those
+# layers; only a direct import here is the defect.
+#
+# platform_django.users.views is deliberately not covered. Django's DetailView
+# and UpdateView take `model = User` as a class attribute, so the same rule
+# there would forbid the framework's own idiom.
+[importlinter:contract:api-views-do-not-query]
+name = The users API viewset does not touch the ORM directly
+type = forbidden
+source_modules =
+    platform_django.users.api.views
+forbidden_modules =
+    platform_django.users.models
+allow_indirect_imports = True

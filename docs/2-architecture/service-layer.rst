@@ -3,6 +3,14 @@ Service Layer Patterns
 
 Business logic organization using services (writes) and selectors (reads), based on the `HackSoft Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_.
 
+.. note::
+
+   ``platform_django/users/`` is the worked example. ``selectors.py`` holds the
+   access-scoped read the API viewset serves, ``services.py`` holds the profile
+   write both the HTML view and the DRF update mixin call, and
+   ``tests/test_services.py`` and ``tests/test_selectors.py`` are the test
+   shapes to copy. Read those five files before writing your own.
+
 Progressive Complexity
 ----------------------
 

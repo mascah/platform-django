@@ -1,6 +1,9 @@
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import QuerySet
+from django.forms import ModelForm
+from django.http import HttpResponse
+from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import DetailView
@@ -8,6 +11,7 @@ from django.views.generic import RedirectView
 from django.views.generic import UpdateView
 
 from platform_django.users.models import User
+from platform_django.users.services import user_update_profile
 
 
 class UserDetailView(LoginRequiredMixin, DetailView):
@@ -19,7 +23,7 @@ class UserDetailView(LoginRequiredMixin, DetailView):
 user_detail_view = UserDetailView.as_view()
 
 
-class UserUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
+class UserUpdateView(LoginRequiredMixin, UpdateView):
     model = User
     fields = ["name"]
     success_message = _("Information successfully updated")
@@ -31,6 +35,20 @@ class UserUpdateView(LoginRequiredMixin, SuccessMessageMixin, UpdateView):
     def get_object(self, queryset: QuerySet | None = None) -> User:
         assert self.request.user.is_authenticated  # type guard
         return self.request.user
+
+    def form_valid(self, form: ModelForm) -> HttpResponse:
+        """Hand the write to the service; the form only validated input.
+
+        Deliberately does not call ``super()``: ``ModelFormMixin.form_valid``
+        would save the form itself, putting the write back in the view.
+        """
+        assert self.request.user.is_authenticated  # type guard
+        self.object = user_update_profile(
+            user_id=self.request.user.pk,
+            name=form.cleaned_data["name"],
+        )
+        messages.success(self.request, self.success_message)
+        return HttpResponseRedirect(self.get_success_url())
 
 
 user_update_view = UserUpdateView.as_view()

@@ -6,7 +6,10 @@ from platform_django.users.api.views import UserViewSet
 
 router = DefaultRouter() if settings.DEBUG else SimpleRouter()
 
-router.register("users", UserViewSet)
+# basename is explicit: the viewset builds its queryset from a selector rather
+# than declaring a class-level `queryset`, so the router has nothing to infer
+# the route names from.
+router.register("users", UserViewSet, basename="user")
 
 
 app_name = "api"
