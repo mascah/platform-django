@@ -3,8 +3,10 @@
 
 import ssl
 from pathlib import Path
+from typing import Any
 
 import environ
+import structlog
 from csp.constants import NONCE
 
 from config.env import cache_config
@@ -104,6 +106,7 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     "django_vite",
     "django_filters",
+    "django_structlog",
     "django_tailwind_cli",
 ]
 
@@ -158,6 +161,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#middleware
 MIDDLEWARE = [
+    # First, so every log emitted while handling a request — including one from
+    # middleware below — carries the request_id it was bound to.
+    "django_structlog.middlewares.RequestMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "csp.middleware.CSPMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -272,25 +278,77 @@ DJANGO_ADMIN_FORCE_ALLAUTH = env.bool("DJANGO_ADMIN_FORCE_ALLAUTH", default=Fals
 # LOGGING
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#logging
-# See https://docs.djangoproject.com/en/dev/topics/logging for
-# more details on how to customize your logging configuration.
-LOGGING = {
+# See https://django-structlog.readthedocs.io/en/latest/events.html for the
+# events `django_structlog` emits and the keys it binds to each one.
+#
+# structlog renders; the stdlib still routes. Every log — from this project, from
+# Django, from a third-party package — reaches the same handler and comes out in
+# the same shape, because `ProcessorFormatter` runs the chain below over stdlib
+# records too (`foreign_pre_chain`).
+#
+# A project adds its own processors here. Redaction, sampling and enrichment all
+# belong in this list rather than at the call sites, so a value cannot reach a
+# handler by way of a call site that forgot.
+STRUCTLOG_SHARED_PROCESSORS: list[Any] = [
+    structlog.contextvars.merge_contextvars,
+    structlog.stdlib.add_log_level,
+    structlog.stdlib.add_logger_name,
+    structlog.stdlib.PositionalArgumentsFormatter(),
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.processors.StackInfoRenderer(),
+    structlog.processors.ExceptionRenderer(),
+    structlog.processors.UnicodeDecoder(),
+]
+
+structlog.configure(
+    processors=[
+        *STRUCTLOG_SHARED_PROCESSORS,
+        # Hands the event dict to whichever formatter the handler names, which is
+        # what lets one processor chain end in two renderers.
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.stdlib.BoundLogger,
+    cache_logger_on_first_use=True,
+)
+
+LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "verbose": {
-            "format": "%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s",
+        "plain_console": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.dev.ConsoleRenderer(),
+            "foreign_pre_chain": STRUCTLOG_SHARED_PROCESSORS,
+        },
+        "json": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.processors.JSONRenderer(),
+            "foreign_pre_chain": STRUCTLOG_SHARED_PROCESSORS,
         },
     },
     "handlers": {
         "console": {
             "level": "DEBUG",
             "class": "logging.StreamHandler",
-            "formatter": "verbose",
+            "formatter": "plain_console",
         },
     },
     "root": {"level": "INFO", "handlers": ["console"]},
 }
+
+# django_structlog
+# ------------------------------------------------------------------------------
+# Stated rather than left to defaults, because each one decides what ends up in
+# every request log for the life of the project.
+# Client IP. `django-ipware` is a hard dependency of django_structlog, so this
+# costs no extra package — but it does put an IP in every request log.
+DJANGO_STRUCTLOG_IP_LOGGING_ENABLED = True
+# Bind `user.pk`, not the username: it is stable across a rename and is not PII.
+DJANGO_STRUCTLOG_USER_ID_FIELD = "pk"
+# Propagate the request_id into tasks the request enqueues, so a task's logs join
+# up with the request that caused it.
+DJANGO_STRUCTLOG_CELERY_ENABLED = True
 
 REDIS_URL = redis_url(env.ENVIRON)
 REDIS_SSL = REDIS_URL is not None and REDIS_URL.startswith("rediss://")

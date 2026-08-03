@@ -105,6 +105,10 @@ assert "anymail" not in settings.INSTALLED_APPS
 # The manifest generates this, and a generated secret carries no trailing slash.
 assert settings.ADMIN_URL.endswith("/"), settings.ADMIN_URL
 
+# Logs go to the dyno's stdout to be collected, so production renders JSON
+# rather than the coloured console format development reads.
+assert settings.LOGGING["handlers"]["console"]["formatter"] == "json", settings.LOGGING
+
 response = Client(headers={"host": "prototype.herokuapp.com"}).get(
     "/healthz/", secure=True
 )
