@@ -87,10 +87,31 @@ byte-identical to the upstream template so that changes can be merged in either
 direction.
 _Avoid_: fork, child, instance
 
-**Template-owned module**:
-A module the template ships and continues to evolve. A downstream project
-inherits from it and extends it, and expects to receive changes to it.
+**Template-owned code**:
+Anything the template ships and continues to evolve — a module, a frontend
+application, a shared package. A downstream project inherits it and extends it,
+and expects to receive changes to it. Earlier documents, including ADR-0006,
+call this a template-owned _module_; it was never limited to modules.
 
-**Project-owned module**:
-A module a downstream project adds, which the template knows nothing about. It
+**Project-owned code**:
+Anything a downstream project adds, which the template knows nothing about. It
 is where anything specific to one project belongs.
+
+### Structuring the code
+
+**Module**:
+A Django bounded context under `platform_django/`. It owns its models, its
+writes, its reads and its migrations, and it is the unit the dependency rules
+and import contracts apply to. A `libs/` package, a frontend application and a
+shared frontend package are none of them modules.
+_Avoid_: app, domain, bounded context, package
+
+**Service**:
+A write operation a module exposes from its `services.py` — a create, an update,
+a delete, or the business logic orchestrating them. Unrelated to a backing
+service, which is a thing the application connects to rather than code it runs.
+
+**Selector**:
+A read operation a module exposes from its `selectors.py`. It may query
+anything readable, but it never writes and never causes an externally visible
+side effect.
