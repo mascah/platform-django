@@ -16,11 +16,15 @@ default:
 
 # === Initial Setup ===
 
-# setup: Run initial developer setup (installs tools, dependencies).
+# bootstrap: Make this checkout runnable — toolchain, dependencies, .env.
+bootstrap:
+    @./bin/bootstrap
+
+# setup: Developer conveniences on top of bootstrap (shell integration, git hooks).
 setup:
     @./bin/setup
 
-# env-refresh: Refresh .env and .envrc from templates (preserves manual overrides).
+# env-refresh: Refresh .env from its template (preserves manual overrides).
 env-refresh *args:
     @./bin/env-refresh {{args}}
 

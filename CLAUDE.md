@@ -8,8 +8,9 @@ Modular monolith Django + Turborepo React for building web applications.
 
 ### Development
 
-- `just setup` — Run initial developer setup (installs tools, dependencies)
-- `just env-refresh` — Refresh .env/.envrc from templates (preserves manual overrides)
+- `bin/bootstrap` — Make a fresh checkout runnable (toolchain, dependencies, .env). Assumes no package manager
+- `just setup` — Developer conveniences on top of bootstrap (shell integration, git hooks)
+- `just env-refresh` — Refresh .env from its template (preserves manual overrides)
 - `just up` — Start Docker stack (Django, Postgres, Redis, Celery, etc.)
 - `just down` — Stop Docker stack
 - `just rebuild` — Stop, rebuild, and restart containers
