@@ -181,7 +181,7 @@ if SENTRY_DSN:
 # -------------------------------------------------------------------------------
 # Tools that generate code samples can use SERVERS to point to the correct domain
 SPECTACULAR_SETTINGS["SERVERS"] = [
-    {"url": "https://example.com", "description": "Production server"},  # type: ignore[list-item]
+    {"url": "https://example.com", "description": "Production server"},
 ]
 # Your stuff...
 # ------------------------------------------------------------------------------

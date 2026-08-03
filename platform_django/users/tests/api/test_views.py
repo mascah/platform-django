@@ -60,26 +60,30 @@ class TestUserViewSetReads:
 
 
 class TestUserViewSetWrites:
-    def test_put_persists_every_writable_field(self, user: User, api_client: APIClient):
-        # The service is handed the serializer's validated_data wholesale, so a
-        # writable field the service does not accept would fail here and only
-        # here.
+    def test_identity_fields_are_not_writable(self, user: User, api_client: APIClient):
+        """Email and username are allauth's, not this endpoint's.
+
+        ACCOUNT_EMAIL_VERIFICATION is "mandatory". A writable email here would
+        change the address without allauth seeing it, leaving User.email
+        pointing somewhere the EmailAddress records never verified.
+        """
+        original_username, original_email = user.username, user.email
+
         response = api_client.put(
             reverse("api:user-detail", kwargs={"username": user.username}),
             {
                 "username": "ada",
                 "name": "Ada Lovelace",
-                "email": "ada@example.com",
+                "email": "attacker@example.com",
             },
             format="json",
         )
 
         assert response.status_code == HTTPStatus.OK
         user.refresh_from_db()
-        assert user.username == "ada"
         assert user.name == "Ada Lovelace"
-        assert user.email == "ada@example.com"
-        assert response.data["url"].endswith("/api/users/ada/")
+        assert user.username == original_username
+        assert user.email == original_email
 
     def test_patch_persists_the_new_name(self, user: User, api_client: APIClient):
         response = api_client.patch(

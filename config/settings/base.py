@@ -402,6 +402,17 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",
+    # Emit separate request/response components for serializers used in both
+    # directions. Without this, read-only fields (``id``, ``url``, and anything
+    # marked read_only to keep it out of writes) leak into write payloads as
+    # *required* properties, forcing the generated client to cast through
+    # `as unknown as` on every write. With the split, request components
+    # (suffixed ``Request``) drop read-only fields and carry write-correct
+    # required/optional flags.
+    #
+    # Paired with `transforms.readWrite: false` in the openapi-ts config: the
+    # split now happens server-side, so the client must not do it again.
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 # django-vite
