@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bin/bootstrap — make a fresh checkout runnable, anywhere
+# =============================================================================
+# Assumes nothing about the machine beyond a shell and curl: no package
+# manager, no shell hook, no prior tooling. Runs unattended, as any user
+# including root, on macOS and Linux.
+#
+# Idempotent — running it twice is harmless.
+#
+# Everything the application needs to run is here. bin/setup is the optional
+# layer on top for a developer's own machine.
+#
+# Usage: bin/bootstrap
+# =============================================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+cd "$PROJECT_DIR"
+
+info()    { printf "\033[1;34m==>\033[0m %s\n" "$1"; }
+success() { printf "\033[1;32m✓\033[0m %s\n" "$1"; }
+
+# Nothing here may wait on a human.
+export DEBIAN_FRONTEND=noninteractive
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+# -----------------------------------------------------------------------------
+# 1. mise — the only thing installed outside the repository
+# -----------------------------------------------------------------------------
+info "Installing mise..."
+
+if command -v mise &>/dev/null; then
+  MISE="$(command -v mise)"
+  success "mise already installed ($("$MISE" --version))"
+else
+  MISE="${MISE_INSTALL_PATH:-$HOME/.local/bin/mise}"
+  if [[ ! -x "$MISE" ]]; then
+    mkdir -p "$(dirname "$MISE")"
+    curl -fsSL https://mise.run | MISE_INSTALL_PATH="$MISE" sh
+  fi
+  success "mise installed at $MISE"
+fi
+
+# -----------------------------------------------------------------------------
+# 2. The pinned toolchain
+# -----------------------------------------------------------------------------
+info "Installing the toolchain..."
+
+# The config is not in mise's trusted paths on a machine that has never seen
+# this checkout, and an untrusted config is silently ignored.
+"$MISE" trust --quiet "$PROJECT_DIR/mise.toml"
+"$MISE" install --yes
+
+success "Toolchain installed: $("$MISE" exec -- node --version), uv $("$MISE" exec -- uv --version | cut -d' ' -f2)"
+
+# Everything below runs through the pinned toolchain rather than whatever the
+# machine happens to have on PATH.
+run() { "$MISE" exec -- "$@"; }
+
+# -----------------------------------------------------------------------------
+# 3. Dependencies — Python and frontend
+# -----------------------------------------------------------------------------
+info "Installing Python dependencies..."
+# uv provisions the interpreter named by .python-version itself.
+run uv sync
+success "Python dependencies installed"
+
+info "Installing frontend dependencies..."
+run corepack enable
+run pnpm install --frozen-lockfile
+success "Frontend dependencies installed"
+
+# -----------------------------------------------------------------------------
+# 4. Environment file
+# -----------------------------------------------------------------------------
+info "Ensuring .env exists..."
+"$SCRIPT_DIR/env-refresh"
+
+# -----------------------------------------------------------------------------
+# Done
+# -----------------------------------------------------------------------------
+echo ""
+success "Bootstrap complete — this checkout is runnable."
+echo ""
+echo "Next steps:"
+echo "  just up      # start backing services"
+echo "  pnpm dev     # start the Vite dev server"
+echo ""
+echo "Commands outside an activated shell run through mise, e.g.:"
+echo "  $MISE exec -- just up"
+echo ""
+echo "Run bin/setup for the optional developer conveniences (shell"
+echo "integration, git hooks)."
+echo ""

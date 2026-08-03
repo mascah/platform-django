@@ -14,9 +14,9 @@ post-merge:
     env-check:
       run: |
         CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)
-        if echo "$CHANGED_FILES" | grep -qE '^\.(env|envrc)\.example$'; then
+        if echo "$CHANGED_FILES" | grep -qE '^\.env\.example$'; then
           printf "\n\033[1;33m⚠  Environment templates changed!\033[0m\n"
-          printf "   Run \033[1mbin/env-refresh\033[0m to update your .env and .envrc\n\n"
+          printf "   Run \033[1mbin/env-refresh\033[0m to update your .env\n\n"
         fi
 
 pre-commit:

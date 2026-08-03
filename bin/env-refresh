@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# bin/env-refresh — Refresh .env and .envrc from their .example templates
+# bin/env-refresh — Refresh .env from its .example template
 # =============================================================================
 # Merges new variables from .env.example into .env without overwriting
 # manually-set values. Backs up the previous .env before writing.
@@ -19,7 +19,9 @@ cd "$PROJECT_DIR"
 # -----------------------------------------------------------------------------
 # Port configuration
 # -----------------------------------------------------------------------------
-MAIN_WORKTREE=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
+# Tolerate git being unusable — bootstrap runs this on machines where the
+# checkout is not a repository git will touch (a container mount, an archive).
+MAIN_WORKTREE=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //' || true)
 REGISTRY_FILE="${MAIN_WORKTREE:-$PROJECT_DIR}/.worktree-ports.json"
 
 # -----------------------------------------------------------------------------
@@ -39,7 +41,7 @@ for arg in "$@"; do
     -h|--help)
       echo "Usage: bin/env-refresh [--force]"
       echo ""
-      echo "Refresh .env, .env.local and .envrc from their .example templates."
+      echo "Refresh .env and .env.local from their .example templates."
       echo ""
       echo "Options:"
       echo "  --force  Overwrite .env entirely from .env.example (no merge)"
@@ -193,21 +195,6 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Refresh .envrc
-# -----------------------------------------------------------------------------
-if [[ -f .envrc.example ]]; then
-  if [[ ! -f .envrc ]]; then
-    cp .envrc.example .envrc
-    success "Created .envrc from .envrc.example"
-  elif ! diff -q .envrc .envrc.example &>/dev/null; then
-    cp .envrc.example .envrc
-    success "Updated .envrc from .envrc.example"
-  else
-    success ".envrc is up to date"
-  fi
-fi
-
-# -----------------------------------------------------------------------------
 # Ensure .env.local exists (port configuration)
 # -----------------------------------------------------------------------------
 if [[ -f .env.local ]]; then
@@ -290,12 +277,4 @@ if [[ -f .env.local ]]; then
   sync_port_primitive POSTGRES_PORT DOCKER_HOST_POSTGRES_PORT
   sync_port_primitive REDIS_PORT DOCKER_HOST_REDIS_PORT
   success "Synced host port primitives into .env"
-fi
-
-# -----------------------------------------------------------------------------
-# Allow direnv
-# -----------------------------------------------------------------------------
-if command -v direnv &>/dev/null && [[ -f .envrc ]]; then
-  direnv allow
-  success "direnv allowed"
 fi

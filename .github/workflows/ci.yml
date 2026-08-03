@@ -24,6 +24,7 @@ jobs:
     outputs:
       python: ${{ steps.filter.outputs.python }}
       typescript: ${{ steps.filter.outputs.typescript }}
+      bootstrap: ${{ steps.filter.outputs.bootstrap }}
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -59,6 +60,21 @@ jobs:
               - 'e2e/**'
               - 'lefthook.yml'
               - '.github/**'
+            # Deliberately narrow: only what can actually break bootstrap. On a
+            # typical change this job does not run at all.
+            bootstrap:
+              - 'bin/bootstrap'
+              - 'bin/env-refresh'
+              - 'mise.toml'
+              - '.python-version'
+              - '.nvmrc'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.env.example'
+              - '.github/workflows/ci.yml'
 
   # ---------------------------------------------------------------------------
   # Linter — runs all checks via lefthook (single source of truth).
@@ -156,6 +172,45 @@ jobs:
 
       - name: Run Django Tests with Coverage
         run: uv run pytest --cov --cov-report=xml --cov-report=term-missing
+
+  # ---------------------------------------------------------------------------
+  # Bootstrap — proves a fresh checkout is runnable on a bare machine.
+  # Runs in a stock Ubuntu container rather than on the runner itself: the
+  # runner already ships Python, Node, uv and Homebrew, so it is not the bare
+  # machine bootstrap is designed for and would prove nothing. Root, no package
+  # manager beyond the two baseline utilities, unattended.
+  # ---------------------------------------------------------------------------
+  bootstrap:
+    needs: changes
+    if: needs.changes.outputs.bootstrap == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v7
+
+      - name: Bootstrap a clean checkout as root, twice
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo ubuntu:24.04 bash -eux -c '
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends curl ca-certificates git
+            test "$(id -u)" -eq 0
+            ! command -v brew
+            ! command -v direnv
+
+            ./bin/bootstrap
+
+            # Idempotent: running it twice is harmless.
+            ./bin/bootstrap
+
+            # It really is runnable: the pinned toolchain, both dependency sets
+            # and the environment file are all present.
+            test -f .env
+            export PATH="$HOME/.local/bin:$PATH"
+            mise exec -- node --version
+            mise exec -- uv run python -c "import django; print(django.__version__)"
+            mise exec -- pnpm --version
+            test -d node_modules
+          '
 
   vitest:
     needs: changes
@@ -267,7 +322,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-success:
     if: always()
-    needs: [changes, lint, pytest, vitest, e2e]
+    needs: [changes, lint, pytest, vitest, e2e, bootstrap]
     runs-on: ubuntu-latest
     steps:
       - name: Check results
@@ -277,6 +332,7 @@ jobs:
             "${{ needs.pytest.result }}"
             "${{ needs.vitest.result }}"
             "${{ needs.e2e.result }}"
+            "${{ needs.bootstrap.result }}"
           )
           for r in "${results[@]}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then

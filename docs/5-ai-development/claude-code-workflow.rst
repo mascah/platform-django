@@ -129,7 +129,7 @@ This script:
 
 - Creates a git worktree at ``../platform-django--feature-branch``
 - Auto-generates ``.env.local`` with unique ``DOCKER_HOST_DJANGO_PORT`` and ``VITE_PLATFORM_DJANGO_PORT``
-- Copies configuration files (``.env``, ``.envrc``, ``.npmrc``)
+- Copies configuration files (``.env``, ``.npmrc``)
 - Runs ``pnpm install``
 
 **Starting development in a worktree**::
