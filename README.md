@@ -58,8 +58,12 @@ git push template improvement   # then open a pull request
 The only files that routinely conflict are the append-mostly lists where a
 project registers what it has added — `INSTALLED_APPS`, the root URL
 configuration, `pnpm-workspace.yaml`, `.importlinter`. Keep them in template
-order and conflicts stay cheap. See
-[ADR-0006](docs/adr/0006-identity-as-data-no-rename.md).
+order and conflicts stay cheap.
+
+What a merge costs, and where to put a change so it costs less — the generated
+API client, project-specific CI, ADR numbering, production settings — is in
+[Staying Connected to the Template](docs/1-getting-started/staying-connected.rst).
+See also [ADR-0006](docs/adr/0006-identity-as-data-no-rename.md).
 
 ### Ejecting
 

@@ -143,6 +143,55 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------------
+  # Generated API client — a serializer changed without regenerating the client
+  # is a build failure, in the same shape as agent-mirrors: run the generator,
+  # then fail on any diff.
+  #
+  # This is the check that makes the client safe to merge. A downstream project
+  # and the template both regenerate it, drf-spectacular sorts components
+  # alphabetically, and so their edits interleave rather than collide — git
+  # merges them without a conflict into a file no schema ever produced. Nothing
+  # about that is visible in review, because a stale .gen.ts diff looks exactly
+  # like an absent one.
+  #
+  # The schema is dumped rather than fetched from a running server, so there is
+  # no database, no Redis, no gunicorn and no port to agree on.
+  # ---------------------------------------------------------------------------
+  openapi-client:
+    needs: changes
+    if: >-
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v7
+
+      - name: Setup Python environment
+        uses: ./.github/actions/setup-python-env
+
+      - name: Setup Node.js environment
+        uses: ./.github/actions/setup-node-env
+
+      - name: Setup CI environment
+        run: |
+          cp .env.ci .env
+          grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
+
+      - name: Regenerate the client from the current schema
+        run: |
+          uv run python manage.py spectacular --file /tmp/openapi-schema.yaml
+          cd apps/platform_django && pnpm openapi-ts -i /tmp/openapi-schema.yaml
+
+      - name: Fail if the committed client is out of date
+        run: |
+          if [ -n "$(git status --porcelain apps/platform_django/src/services)" ]; then
+            git diff -- apps/platform_django/src/services
+            echo "The committed API client does not match the current schema. Run 'just openapi' and commit the result."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
   # Test & build jobs — only run when relevant files change
   # ---------------------------------------------------------------------------
   pytest:
@@ -344,7 +393,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-success:
     if: always()
-    needs: [changes, lint, pytest, vitest, e2e, bootstrap]
+    needs: [changes, lint, pytest, vitest, e2e, bootstrap, openapi-client]
     runs-on: ubuntu-latest
     steps:
       - name: Check results
@@ -355,6 +404,7 @@ jobs:
             "${{ needs.vitest.result }}"
             "${{ needs.e2e.result }}"
             "${{ needs.bootstrap.result }}"
+            "${{ needs['openapi-client'].result }}"
           )
           for r in "${results[@]}"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then

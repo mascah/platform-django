@@ -10,9 +10,9 @@ Both are workspace members; shared UI and configs live in `packages/`.
 
 `src/services/platform_django/` is generated from Django's OpenAPI schema and is
 never hand-edited. If the output is wrong, fix the serializer or the schema
-annotation and regenerate. Use the `openapi-client` skill — it covers the
-read/write split and the fact that the generator's configured port is not this
-worktree's port.
+annotation and run `just openapi`. CI regenerates it and fails on any diff, so a
+stale client is a build failure. Use the `openapi-client` skill — it covers the
+read/write split and what to do when a merge touches these files.
 
 Generated names follow the operation IDs, so hooks read as `usersListOptions()`,
 `usersRetrieveOptions({ path: { username } })` and

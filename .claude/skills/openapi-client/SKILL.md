@@ -48,19 +48,38 @@ together with the other.
 
 ## Regenerate
 
-Django must be running — the generator fetches the live schema.
-
 ```bash
-cd apps/platform_django && pnpm openapi-ts
+just openapi
 ```
 
-The configured input is `http://localhost:8000/api/schema`. A worktree runs
-Django on its own port, so check `just ports` and point the generator at that
-port when it is not 8000; otherwise you regenerate against whatever else is
-listening on 8000, or nothing.
+That dumps the schema with `manage.py spectacular` and runs the generator
+against the file, so nothing needs to be serving and there is no port to get
+right. Django does not have to be running and neither does the database.
 
 Regenerate after adding, changing or removing a serializer field; changing a
 view, route or `@extend_schema` annotation; or adding an `@action`.
+
+To generate against a server that is already up instead, pass its schema URL
+with `-i` — a worktree serves on its own port, so `just ports` is where that
+port comes from, not 8000. Without `-i` the generator falls back to the URL in
+`openapi-ts.config.ts`, which assumes port 8000.
+
+## CI fails on a stale client
+
+The `openapi-client` job regenerates the client and fails on any diff, the same
+way `agent-mirrors` guards the skill mirrors. Satisfy it by running
+`just openapi` and committing the result.
+
+It exists because staleness is invisible in review: a `.gen.ts` diff that should
+be there and is not looks exactly like one that was never needed. This matters
+most on a merge with the template. drf-spectacular sorts components
+alphabetically, so a project's added types interleave with the template's rather
+than colliding, and git merges them cleanly into a file no schema ever produced.
+
+So the rule after any merge that touched serializers, views, schema annotations
+or the generator config is to regenerate and commit — never to resolve the
+generated files by hand, and never to read a clean auto-merge as evidence the
+result is right.
 
 ## Generated files
 
@@ -76,12 +95,13 @@ permissions where the change depends on them.
 
 - backend test for the changed endpoint or schema —
   `platform_django/users/tests/api/test_openapi.py` is the shape
-- `cd apps/platform_django && pnpm openapi-ts`
+- `just openapi`, then confirm the tree is clean — a diff means the client was stale
 - `pnpm typecheck` when generated types or their usage changed
 
 ## Common misses
 
-- Regenerating against port 8000 from a worktree that serves on another port.
+- Hand-resolving the generated files in a merge instead of regenerating them.
+- Generating with no `-i` from a worktree that serves on a port other than 8000.
 - Editing generated files instead of the serializer behind them.
 - Treating generated types as runtime validation.
 - Re-enabling `readWrite` while `COMPONENT_SPLIT_REQUEST` is also on.

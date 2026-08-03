@@ -21,6 +21,7 @@ and adopt more structure as complexity warrants it.
 
    1-getting-started/local-setup
    1-getting-started/configuration
+   1-getting-started/staying-connected
 
 .. toctree::
    :maxdepth: 2

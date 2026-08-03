@@ -91,6 +91,19 @@ beat:
 manage +args:
     @uv run python manage.py {{args}}
 
+# openapi: Regenerate the TypeScript API client from the current Django schema.
+#
+# Dumps the schema rather than fetching it from a running server, so this needs
+# neither `just serve` nor knowledge of this worktree's port. CI runs the same
+# two commands and fails if the result differs from what is committed.
+openapi:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    schema="$(mktemp -t openapi-schema.XXXXXX)"
+    trap 'rm -f "$schema"' EXIT
+    uv run python manage.py spectacular --file "$schema"
+    cd apps/platform_django && pnpm openapi-ts -i "$schema"
+
 # === Documentation ===
 
 # docs: Build documentation.
