@@ -47,6 +47,21 @@ just coverage           # Run tests with coverage report
 just libs-test          # Run tests for libs/ packages
 ```
 
+## Deploying
+
+`app.json` is the manifest: buildpack order (frontend, then Python), the minimum
+add-ons, the configuration variables, and a formation with only the web process
+scaled. Provisioning a prototype is one command against it:
+
+```bash
+heroku create --manifest
+git push heroku main
+```
+
+A prototype runs with no key-value store: the cache is in-process, background
+tasks run inline, and mail goes to the dyno log. Graduating is a diff to
+`app.json` plus a scale command — no code change.
+
 ## Architecture
 
 See [CLAUDE.md](CLAUDE.md) for detailed architecture rules, module boundaries, and conventions.
