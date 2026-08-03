@@ -164,6 +164,27 @@ Production uses ``config.settings.production``. Key settings:
 - Secure cookies (``SESSION_COOKIE_SECURE``, ``CSRF_COOKIE_SECURE``)
 - HSTS headers
 
+Every value a deployment needs to differ on is read from the environment, so a
+project changes it by setting a variable rather than by editing a tracked file.
+The variables are declared in ``app.json``; these two are the ones a project
+most often wants:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Variable
+     - Purpose
+   * - ``DJANGO_SECURE_HSTS_SECONDS``
+     - How long browsers are told to require HTTPS. Defaults to ``60``. A
+       browser honours this for the whole window, so a long value set before
+       HTTPS is proven locks visitors out of a host that cannot yet serve them.
+       Raise it to ``518400`` once the short window has held.
+   * - ``DJANGO_API_SERVER_URL``
+     - Public base URL advertised in the OpenAPI schema's ``SERVERS`` block,
+       used by tools that generate API code samples. Defaults to
+       ``https://example.com``.
+
 Django REST Framework
 ---------------------
 

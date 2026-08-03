@@ -40,6 +40,14 @@
       "description": "Hosts Django will answer for. The leading dot matches any subdomain; add your own domain when you attach one.",
       "value": ".herokuapp.com"
     },
+    "DJANGO_API_SERVER_URL": {
+      "description": "Optional. Public base URL of this app, used by tools that generate API code samples from the OpenAPI schema.",
+      "required": false
+    },
+    "DJANGO_SECURE_HSTS_SECONDS": {
+      "description": "Optional. How long browsers are told to require HTTPS. Defaults to a minute; raise it to 518400 once the short window has held.",
+      "required": false
+    },
     "SENTRY_DSN": {
       "description": "Optional. Error reporting is off while this is unset.",
       "required": false
