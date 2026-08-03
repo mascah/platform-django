@@ -61,6 +61,31 @@ configuration, `pnpm-workspace.yaml`, `.importlinter`. Keep them in template
 order and conflicts stay cheap. See
 [ADR-0006](docs/adr/0006-identity-as-data-no-rename.md).
 
+### Ejecting
+
+When a project has outgrown the template — its own infrastructure, its own
+deployment story, nothing left it wants to receive — `bin/eject` ends the
+arrangement:
+
+```bash
+bin/eject acme_app                      # display name derived: "Acme App"
+bin/eject acme_app "ACME Rocket Sled"   # or given explicitly
+```
+
+It renames the package, the workspace application and every reference to them,
+drops the `template` remote, regenerates the lockfiles, and deletes itself.
+Links that point at the template's _own_ repository are left alone and listed,
+because renaming a clone URL only produces one that resolves to nothing.
+
+`PROJECT_SLUG` and `PROJECT_DISPLAY_NAME` stay — they are ordinary
+configuration, not template scaffolding. Only their defaults move.
+
+Ejecting is one way. It refuses to run against a dirty tree so that
+`git reset --hard` is a real undo in the minute afterwards, but there is no
+route back once you have built on it. Do it when you have decided you will never
+merge with the template again; until then the rename buys nothing and costs you
+the ability to. See [ADR-0007](docs/adr/0007-ejecting-from-the-template.md).
+
 ## Quick Start
 
 ```bash
