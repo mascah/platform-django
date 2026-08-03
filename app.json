@@ -16,6 +16,14 @@
     }
   ],
   "env": {
+    "PROJECT_SLUG": {
+      "description": "Names this project's resources. Nothing in the template is renamed, so this is what distinguishes one project from another.",
+      "value": "platform_django"
+    },
+    "PROJECT_DISPLAY_NAME": {
+      "description": "What a user reads: page titles, the landing page, the API schema, the from-address on an email.",
+      "value": "Platform Django"
+    },
     "DJANGO_SETTINGS_MODULE": {
       "description": "manage.py defaults to local settings, so the deploy has to say otherwise.",
       "value": "config.settings.production"

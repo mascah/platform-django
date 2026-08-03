@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # =============================================================================
-# bin/worktree-destroy — Claude Code WorktreeRemove hook
+# bin/worktree-destroy — tear a worktree down, database included
 # =============================================================================
-# Called automatically when exiting a Claude Code worktree session.
+# Sits behind Claude Code's WorktreeRemove hook, and takes the same job from a
+# shell:
+#
+#   bin/worktree-destroy .claude/worktrees/feature-name
 #
 # There are no containers to stop and no port registry to release: the worktree
 # shared the machine's backing services, and its .env was the only record of the
 # ports and Redis index it held, so removing the worktree frees them.
 #
-# Its database on the shared Postgres is left behind — dropping it is #68.
+# Its database on the shared Postgres is the one thing that outlives the
+# directory, so it is dropped first — while the .env that names it still exists.
 #
-# Contract:
+# Contract when run as a hook:
 #   stdin:  JSON with { worktree_path, session_id, hook_event_name }
 #   stdout: Nothing required
 #   stderr: All logging output
@@ -19,14 +23,14 @@ set -euo pipefail
 
 log() { echo "$@" >&2; }
 
-# ---------------------------------------------------------------------------
-# Parse JSON input from stdin
-# ---------------------------------------------------------------------------
-INPUT=$(cat)
-WORKTREE_PATH=$(echo "$INPUT" | jq -r '.worktree_path')
+if [[ $# -gt 0 ]]; then
+  WORKTREE_PATH="$1"
+else
+  WORKTREE_PATH=$(jq -r '.worktree_path // empty' <<<"$(cat)")
+fi
 
-if [[ -z "$WORKTREE_PATH" || "$WORKTREE_PATH" == "null" ]]; then
-  log "Error: 'worktree_path' field missing from input"
+if [[ -z "$WORKTREE_PATH" ]]; then
+  log "Error: no worktree path given"
   exit 1
 fi
 
@@ -39,14 +43,56 @@ if [[ -z "$MAIN_WORKTREE" ]]; then
   MAIN_WORKTREE=$(dirname "$(dirname "$(dirname "$WORKTREE_PATH")")")
 fi
 
+env_value() {
+  local key="$1" file="$2"
+  grep -m1 "^${key}=" "$file" 2>/dev/null | sed "s/^${key}=//" || return 0
+}
+
+# ---------------------------------------------------------------------------
+# Drop this worktree's database
+# ---------------------------------------------------------------------------
+# Best effort: the shared Postgres may not be running, and a database left
+# behind is untidy rather than wrong. Refusing to drop the main checkout's
+# database is not best effort — a worktree whose .env still names it never got
+# one of its own, and dropping it would take the main checkout's data with it.
+drop_database() {
+  local env_file="$WORKTREE_PATH/.env" db user
+
+  if [[ ! -f "$env_file" ]]; then
+    log "No .env in the worktree; nothing to drop"
+    return 0
+  fi
+
+  db=$(env_value POSTGRES_DB "$env_file")
+  user=$(env_value POSTGRES_USER "$env_file")
+
+  if [[ -z "$db" ]]; then
+    log "No POSTGRES_DB in the worktree's .env; nothing to drop"
+    return 0
+  fi
+
+  if [[ "$db" == "$(env_value POSTGRES_DB "$MAIN_WORKTREE/.env")" ]]; then
+    log "Refusing to drop $db — it is the main checkout's database"
+    return 0
+  fi
+
+  log "Dropping database: $db"
+  if ! (cd "$MAIN_WORKTREE" && docker compose exec -T postgres \
+    dropdb -U "${user:-postgres}" --if-exists --force "$db") >&2; then
+    log "Warning: could not drop $db (are the backing services running?)"
+  fi
+}
+
+drop_database
+
 # ---------------------------------------------------------------------------
 # Remove the git worktree
 # ---------------------------------------------------------------------------
 if [[ -d "$WORKTREE_PATH" ]]; then
-  git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH" --force 2>&1 >&2 || {
+  git -C "$MAIN_WORKTREE" worktree remove "$WORKTREE_PATH" --force >&2 || {
     log "Warning: git worktree remove failed, cleaning up manually"
     rm -rf "$WORKTREE_PATH"
-    git -C "$MAIN_WORKTREE" worktree prune 2>&1 >&2 || true
+    git -C "$MAIN_WORKTREE" worktree prune >&2 || true
   }
 fi
 
@@ -55,9 +101,9 @@ fi
 # ---------------------------------------------------------------------------
 BRANCH_NAME="worktree-$(basename "$WORKTREE_PATH")"
 
-if git -C "$MAIN_WORKTREE" show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
+if git -C "$MAIN_WORKTREE" show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
   log "Deleting branch: $BRANCH_NAME"
-  git -C "$MAIN_WORKTREE" branch -D "$BRANCH_NAME" 2>&1 >&2 || {
+  git -C "$MAIN_WORKTREE" branch -D "$BRANCH_NAME" >&2 || {
     log "Warning: Could not delete branch $BRANCH_NAME"
   }
 fi

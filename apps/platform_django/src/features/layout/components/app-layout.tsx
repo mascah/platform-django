@@ -13,6 +13,10 @@ import {
 import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/features/auth';
 
+// Project identity is data: the template is never renamed, so the name a user
+// reads comes from the environment rather than from this file.
+const projectDisplayName = import.meta.env.PROJECT_DISPLAY_NAME ?? 'App';
+
 export function AppLayout() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
@@ -24,7 +28,7 @@ export function AppLayout() {
         <div className="container flex h-14 items-center">
           <div className="mr-4 flex">
             <Link to="/" className="flex items-center space-x-2">
-              <span className="font-bold">Platform Django</span>
+              <span className="font-bold">{projectDisplayName}</span>
             </Link>
           </div>
           <nav className="flex flex-1 items-center space-x-4 text-sm font-medium">

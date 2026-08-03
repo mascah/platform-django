@@ -143,6 +143,9 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "libs/**/*.py" = ["DJ"]  # Libs are Django-free
+# Driving bin/worktree-create is the whole point of this test; the "untrusted
+# input" is a literal worktree name and a tmp_path.
+"tests/test_worktree_create.py" = ["S603"]
 
 [tool.ruff.lint.isort]
 force-single-line = true

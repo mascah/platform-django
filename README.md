@@ -10,29 +10,81 @@ A project template for building web applications with Django + Turborepo React.
 - **Frontend**: React 19, Vite, Turborepo, Tailwind CSS, shadcn/ui
 - **Tooling**: uv, pnpm, Lefthook, Ruff, ESLint, Prettier, mypy
 
+## Making a Project From This Template
+
+Nothing is renamed. A new project is a clone plus two values:
+
+```bash
+git clone https://github.com/mascah/platform-django.git acme-app
+cd acme-app
+bin/bootstrap
+```
+
+Then set the two in `.env`:
+
+```bash
+PROJECT_SLUG=acme_app            # names resources: databases, the deployed app
+PROJECT_DISPLAY_NAME=Acme App    # what a user reads: titles, landing page, emails
+```
+
+`PROJECT_SLUG` defaults to the checkout's directory name, so two projects on one
+machine already have separate databases, cache keys and task queues without
+either being renamed. The internal Python package stays `platform_django` in
+every project — that is the point, and it is invisible to users of the
+application.
+
+Adding domain modules and frontend applications is unaffected: those are
+additions, named freely, and additions merge cleanly.
+
+### Staying connected to the template
+
+Because no file is renamed, an improvement is an ordinary merge in either
+direction:
+
+```bash
+# Once, in the project
+git remote add template https://github.com/mascah/platform-django.git
+
+# Receive an improvement from the template
+git fetch template
+git merge template/main
+
+# Contribute one back
+git checkout -b improvement template/main
+git cherry-pick <commit>
+git push template improvement   # then open a pull request
+```
+
+The only files that routinely conflict are the append-mostly lists where a
+project registers what it has added — `INSTALLED_APPS`, the root URL
+configuration, `pnpm-workspace.yaml`, `.importlinter`. Keep them in template
+order and conflicts stay cheap. See
+[ADR-0006](docs/adr/0006-identity-as-data-no-rename.md).
+
 ## Quick Start
 
 ```bash
-# 1. Run the setup script (installs tools, dependencies, generates .env)
-just setup
+# 1. Make the checkout runnable (toolchain, dependencies, .env)
+bin/bootstrap
 
-# 2. Start the Docker stack (Django, Postgres, Redis, Celery, Mailpit)
+# 2. Start the shared backing services (Postgres, Redis, Mailpit)
 just up
 
 # 3. Run database migrations
 just manage migrate
 
-# 4. Start the Vite dev server (runs on host)
+# 4. Start Django and the Vite dev server (both host processes)
+just serve
 pnpm dev
 ```
 
 ## Development
 
 ```bash
-just up              # Start Docker stack
-just down            # Stop Docker stack
-just logs            # View container logs
-just manage <cmd>    # Run manage.py in container
+just up              # Start the shared backing services
+just down            # Stop them (affects every worktree)
+just logs            # View backing service logs
+just manage <cmd>    # Run manage.py
 just serve           # Run Django on this worktree's port
 pnpm dev             # Run Vite dev servers
 ```

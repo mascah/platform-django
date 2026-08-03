@@ -62,13 +62,19 @@ claude --worktree feature-name
 claude --worktree
 ```
 
-This automatically:
+`bin/worktree-create` sits behind that trigger and:
 
 1. Creates a git worktree at `.claude/worktrees/{name}`
 2. Generates `.env` with its own database name, Redis index and application ports
-3. Installs Python and Node dependencies
+3. Starts `uv sync` and `pnpm install` in the background and reports the path without waiting — output lands in `.install.log`
 
-When you exit the session, Claude prompts to keep or remove the worktree.
+The same script takes a name on the command line, for harnesses without that trigger:
+
+```bash
+bin/worktree-create feature-name
+```
+
+When you exit the session, Claude prompts to keep or remove the worktree. Removing it runs `bin/worktree-destroy`, which drops the worktree's database before the `.env` naming it goes — abandoned branches do not leave state behind. It refuses to drop the main checkout's database.
 
 ### Isolation
 
@@ -78,9 +84,11 @@ One Postgres and one Redis serve every worktree on the machine, so a worktree do
 - **Redis logical index** — `REDIS_DB`, one per worktree (Redis serves 16)
 - **Application ports** — `DJANGO_PORT` and `VITE_PORT`, the only ports that need allocating, since Django and Vite run on the host
 
-Those services are shared across every _project_ on the machine too, not just every worktree of this one. `PROJECT_SLUG` is what keeps two projects apart: it defaults to the checkout's directory name, and it names the database, the cache key prefix and the Celery queue. Two projects may sit on the same Redis index without interfering, because the keys and the queue carry the slug.
+Those services are shared across every _project_ on the machine too, not just every worktree of this one. Nothing the template ships is ever renamed — a project is a clone plus `PROJECT_SLUG` and `PROJECT_DISPLAY_NAME` (see the README). `PROJECT_SLUG` is what keeps two projects apart: it defaults to the checkout's directory name, and it names the database, the cache key prefix and the Celery queue. Two projects may sit on the same Redis index without interfering, because the keys and the queue carry the slug.
 
-`bin/env-refresh` works those out on first write and puts them in `.env`, which is the record of what the worktree took — sibling worktrees are read out of their own `.env` files, so there is no registry to go stale and nothing to clean up.
+`bin/env-refresh` works those out on first write and puts them in `.env`, which is the record of what the worktree took — sibling worktrees are read out of their own `.env` files, so there is no registry to go stale and nothing to clean up. Ports are also probed before being handed out, because a sibling's `.env` only knows what this project allocated and the machine is shared with everything else running on it.
+
+Every shell command an agent runs picks up these values: the `worktree-env` hook asks mise for the current directory's environment first, and mise loads `.env`.
 
 ```bash
 # Show this worktree's ports, database and Redis index

@@ -67,6 +67,22 @@ def project_slug(env: Mapping[str, str]) -> str:
     return env.get("PROJECT_SLUG") or "app"
 
 
+def project_display_name(env: Mapping[str, str]) -> str:
+    """Return the name a user of this project sees.
+
+    Separate from the slug because the two are wanted in different places: the
+    slug names resources and has to survive being a database identifier, while
+    this appears in a page title, an email and the API schema. Falling back to
+    the slug means a project that set only the slug still reads as itself
+    rather than as the template it was cloned from.
+    """
+    supplied = env.get("PROJECT_DISPLAY_NAME")
+    if supplied:
+        return supplied
+
+    return project_slug(env).replace("_", " ").replace("-", " ").title()
+
+
 def cache_config(env: Mapping[str, str]) -> dict[str, dict]:
     """Return the ``CACHES`` setting for ``env``."""
     url = redis_url(env)
