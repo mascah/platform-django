@@ -5,6 +5,10 @@ no state is held, so this is unit-testable without loading settings.
 
 A supplied URL always wins, so platforms that inject one keep working. Absent
 one, the URL is composed from the primitives the environment template carries.
+
+Redis is an optional capability rather than a requirement: with none configured
+the cache is in-process and task dispatch is eager, so a prototype runs without
+paying for one and graduates by provisioning the add-on — no code change.
 """
 
 from collections.abc import Mapping
@@ -33,13 +37,50 @@ def database_url(env: Mapping[str, str]) -> str:
     return f"postgres://{user}:{password}@{host}:{port}/{name}"
 
 
-def redis_url(env: Mapping[str, str]) -> str:
-    """Return the Redis connection URL for ``env``."""
+def redis_url(env: Mapping[str, str]) -> str | None:
+    """Return the Redis connection URL for ``env``, or ``None`` if unconfigured.
+
+    A port or index alone says nothing about where Redis is, so a host is what
+    makes it configured.
+    """
     supplied = env.get("REDIS_URL")
     if supplied:
         return supplied
 
-    host = env.get("REDIS_HOST") or "localhost"
+    host = env.get("REDIS_HOST")
+    if not host:
+        return None
+
     port = env.get("REDIS_PORT") or "6379"
     index = env.get("REDIS_DB") or "0"
     return f"redis://{host}:{port}/{index}"
+
+
+def cache_config(env: Mapping[str, str]) -> dict[str, dict]:
+    """Return the ``CACHES`` setting for ``env``."""
+    url = redis_url(env)
+    if not url:
+        return {
+            "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+        }
+
+    return {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": url,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                # Mimicking memcache behavior.
+                # https://github.com/jazzband/django-redis#memcached-exceptions-behavior
+                "IGNORE_EXCEPTIONS": True,
+            },
+        },
+    }
+
+
+def task_always_eager(env: Mapping[str, str]) -> bool:
+    """Return whether task dispatch should run inline for ``env``.
+
+    With no broker, dispatching a task would otherwise hang.
+    """
+    return redis_url(env) is None

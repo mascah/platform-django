@@ -7,8 +7,10 @@ from pathlib import Path
 import environ
 from csp.constants import NONCE
 
+from config.env import cache_config
 from config.env import database_url
 from config.env import redis_url
+from config.env import task_always_eager
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # platform_django/
@@ -281,13 +283,29 @@ LOGGING = {
 }
 
 REDIS_URL = redis_url(env.ENVIRON)
-REDIS_SSL = REDIS_URL.startswith("rediss://")
+REDIS_SSL = REDIS_URL is not None and REDIS_URL.startswith("rediss://")
+
+# CACHES
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#caches
+# In-process with no Redis provisioned, the real backend once there is one.
+CACHES = cache_config(env.ENVIRON)
+
+# SESSIONS
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/dev/ref/settings/#session-engine
+# Deliberately database-backed at every tier: an in-process cache would log
+# everyone out on restart.
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # Celery
 # ------------------------------------------------------------------------------
 if USE_TZ:
     # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-timezone
     CELERY_TIMEZONE = TIME_ZONE
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_always_eager
+# With no broker, dispatch runs inline rather than hanging.
+CELERY_TASK_ALWAYS_EAGER = task_always_eager(env.ENVIRON)
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
 CELERY_BROKER_URL = REDIS_URL
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#redis-backend-use-ssl
