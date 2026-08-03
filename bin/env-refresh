@@ -85,8 +85,13 @@ key_exists_in_file() {
   grep -q "^${key}=" "$file" 2>/dev/null
 }
 
+# Lowercase, with anything that cannot name a database turned into an underscore.
+slugify() {
+  basename "$1" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '_' | sed 's/_*$//'
+}
+
 # -----------------------------------------------------------------------------
-# Which worktree is this?
+# Which project, and which worktree of it?
 # -----------------------------------------------------------------------------
 # The main worktree is the first `git worktree list` reports. Tolerate git being
 # unusable — bootstrap runs this on checkouts git will not touch (a container
@@ -94,8 +99,17 @@ key_exists_in_file() {
 WORKTREE_NAME=""
 MAIN_WORKTREE=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
 if [[ -n "$MAIN_WORKTREE" && ! "$PROJECT_DIR" -ef "$MAIN_WORKTREE" ]]; then
-  WORKTREE_NAME=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]' '_' | sed 's/_*$//')
+  WORKTREE_NAME=$(slugify "$PROJECT_DIR")
 fi
+
+# The slug names this project's resources. Backing services are shared across
+# every project on the machine, not just every worktree, so a second copy of the
+# template that kept the template's own slug would land on the first copy's
+# database. Defaulting to the checkout's own directory name means copying the
+# template is still a clone with nothing renamed, and two copies still differ.
+PROJECT_SLUG=$(get_value_from_file PROJECT_SLUG .env)
+COMPUTED_PROJECT_SLUG=${PROJECT_SLUG:-$(slugify "${MAIN_WORKTREE:-$PROJECT_DIR}")}
+PROJECT_SLUG="$COMPUTED_PROJECT_SLUG"
 
 # -----------------------------------------------------------------------------
 # Allocation, with the sibling .env files as the record
@@ -120,9 +134,6 @@ allocate() {
   echo "$candidate"
 }
 
-PROJECT_SLUG=$(get_value_from_file PROJECT_SLUG .env)
-PROJECT_SLUG=${PROJECT_SLUG:-$(get_value_from_file PROJECT_SLUG .env.example)}
-
 # The slug names the database; a worktree gets its own beside it. Postgres
 # truncates identifiers at 63 bytes, which would silently alias two long
 # worktree names onto one database.
@@ -142,10 +153,11 @@ COMPUTED_VITE_PORT=$(allocate VITE_PORT 5173)
 # time. An existing value always wins, so re-running never moves a worktree.
 computed_value() {
   case "$1" in
-    POSTGRES_DB) echo "$COMPUTED_POSTGRES_DB" ;;
-    REDIS_DB)    echo "$COMPUTED_REDIS_DB" ;;
-    DJANGO_PORT) echo "$COMPUTED_DJANGO_PORT" ;;
-    VITE_PORT)   echo "$COMPUTED_VITE_PORT" ;;
+    PROJECT_SLUG) echo "$COMPUTED_PROJECT_SLUG" ;;
+    POSTGRES_DB)  echo "$COMPUTED_POSTGRES_DB" ;;
+    REDIS_DB)     echo "$COMPUTED_REDIS_DB" ;;
+    DJANGO_PORT)  echo "$COMPUTED_DJANGO_PORT" ;;
+    VITE_PORT)    echo "$COMPUTED_VITE_PORT" ;;
   esac
 }
 

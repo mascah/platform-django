@@ -78,6 +78,8 @@ One Postgres and one Redis serve every worktree on the machine, so a worktree do
 - **Redis logical index** — `REDIS_DB`, one per worktree (Redis serves 16)
 - **Application ports** — `DJANGO_PORT` and `VITE_PORT`, the only ports that need allocating, since Django and Vite run on the host
 
+Those services are shared across every _project_ on the machine too, not just every worktree of this one. `PROJECT_SLUG` is what keeps two projects apart: it defaults to the checkout's directory name, and it names the database, the cache key prefix and the Celery queue. Two projects may sit on the same Redis index without interfering, because the keys and the queue carry the slug.
+
 `bin/env-refresh` works those out on first write and puts them in `.env`, which is the record of what the worktree took — sibling worktrees are read out of their own `.env` files, so there is no registry to go stale and nothing to clean up.
 
 ```bash

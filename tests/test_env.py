@@ -4,6 +4,7 @@ import pytest
 
 from config.env import cache_config
 from config.env import database_url
+from config.env import project_slug
 from config.env import redis_url
 from config.env import task_always_eager
 
@@ -80,15 +81,41 @@ def test_redis_url_absent_when_nothing_configured():
 
 
 def test_cache_is_in_process_without_redis():
-    assert cache_config({}) == {
-        "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
-    }
+    default = cache_config({})["default"]
+    assert default["BACKEND"] == "django.core.cache.backends.locmem.LocMemCache"
 
 
 def test_cache_uses_redis_when_configured():
     default = cache_config({"REDIS_HOST": "cache.example.com"})["default"]
     assert default["BACKEND"] == "django_redis.cache.RedisCache"
     assert default["LOCATION"] == "redis://cache.example.com:6379/0"
+
+
+def test_project_slug_falls_back_when_unset():
+    assert project_slug({"PROJECT_SLUG": "acme_app"}) == "acme_app"
+    assert project_slug({}) == "app"
+
+
+def test_cache_keys_are_namespaced_by_project():
+    """Two projects share one Redis and both start at logical index 0."""
+    acme = {"REDIS_HOST": "localhost", "PROJECT_SLUG": "acme_app"}
+    beta = {"REDIS_HOST": "localhost", "PROJECT_SLUG": "beta_app"}
+
+    assert (
+        cache_config(acme)["default"]["LOCATION"]
+        == (cache_config(beta)["default"]["LOCATION"])
+    )
+    assert cache_config(acme)["default"]["KEY_PREFIX"] == "acme_app"
+    assert cache_config(beta)["default"]["KEY_PREFIX"] == "beta_app"
+
+
+def test_cache_keys_are_namespaced_at_both_tiers():
+    """Graduating to Redis must not rename what is already cached."""
+    with_redis = {"REDIS_HOST": "localhost", "PROJECT_SLUG": "acme_app"}
+    without = {"PROJECT_SLUG": "acme_app"}
+
+    assert cache_config(with_redis)["default"]["KEY_PREFIX"] == "acme_app"
+    assert cache_config(without)["default"]["KEY_PREFIX"] == "acme_app"
 
 
 def test_task_dispatch_is_eager_only_without_redis():

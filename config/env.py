@@ -56,18 +56,37 @@ def redis_url(env: Mapping[str, str]) -> str | None:
     return f"redis://{host}:{port}/{index}"
 
 
+def project_slug(env: Mapping[str, str]) -> str:
+    """Return the slug naming this project's resources.
+
+    One Redis serves every project on a development machine, and a logical index
+    is only ever handed out within a project — two projects both start at index
+    0. The slug is therefore what keeps their cached values and queued tasks
+    apart, rather than the index they happen to share.
+    """
+    return env.get("PROJECT_SLUG") or "app"
+
+
 def cache_config(env: Mapping[str, str]) -> dict[str, dict]:
     """Return the ``CACHES`` setting for ``env``."""
     url = redis_url(env)
+    # Applied at both tiers, so a key is named the same whether or not Redis has
+    # been provisioned and graduating cannot quietly change what is cached.
+    key_prefix = project_slug(env)
+
     if not url:
         return {
-            "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+                "KEY_PREFIX": key_prefix,
+            },
         }
 
     return {
         "default": {
             "BACKEND": "django_redis.cache.RedisCache",
             "LOCATION": url,
+            "KEY_PREFIX": key_prefix,
             "OPTIONS": {
                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
                 # Mimicking memcache behavior.

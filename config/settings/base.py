@@ -9,6 +9,7 @@ from csp.constants import NONCE
 
 from config.env import cache_config
 from config.env import database_url
+from config.env import project_slug
 from config.env import redis_url
 from config.env import task_always_eager
 
@@ -306,6 +307,12 @@ if USE_TZ:
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_always_eager
 # With no broker, dispatch runs inline rather than hanging.
 CELERY_TASK_ALWAYS_EAGER = task_always_eager(env.ENVIRON)
+# https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-task_default_queue
+# Named after the project rather than Celery's shared default, because one Redis
+# serves every project on a development machine and two of them queueing onto
+# "celery" would each run the other's tasks. Workers consume this queue by
+# default, so nothing has to name it.
+CELERY_TASK_DEFAULT_QUEUE = project_slug(env.ENVIRON)
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#std:setting-broker_url
 CELERY_BROKER_URL = REDIS_URL
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#redis-backend-use-ssl

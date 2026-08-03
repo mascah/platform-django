@@ -96,7 +96,7 @@ records them in ``.env``; an existing value is never moved, so re-running is saf
      - Description
    * - ``PROJECT_SLUG``
      - No
-     - Names resources: the database, and the deployed application. Default: ``platform_django``.
+     - Names this project's database, cache key prefix and Celery queue. Defaults to the checkout's directory name, so a second copy of the template does not land on the first's database. The backing services are shared across projects, not just worktrees.
    * - ``POSTGRES_DB``
      - No
      - ``{PROJECT_SLUG}_{worktree}`` in a worktree, ``{PROJECT_SLUG}`` in the main checkout.
