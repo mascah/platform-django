@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from urllib.parse import quote
 
 
-def _required(env: Mapping[str, str], key: str) -> str:
+def _required_pg(env: Mapping[str, str], key: str) -> str:
     value = env.get(key)
     if not value:
         msg = f"Set DATABASE_URL, or the {key} primitive it is composed from."
@@ -25,9 +25,9 @@ def database_url(env: Mapping[str, str]) -> str:
     if supplied:
         return supplied
 
-    user = quote(_required(env, "POSTGRES_USER"), safe="")
-    password = quote(_required(env, "POSTGRES_PASSWORD"), safe="")
-    name = _required(env, "POSTGRES_DB")
+    user = quote(_required_pg(env, "POSTGRES_USER"), safe="")
+    password = quote(_required_pg(env, "POSTGRES_PASSWORD"), safe="")
+    name = _required_pg(env, "POSTGRES_DB")
     host = env.get("POSTGRES_HOST") or "localhost"
     port = env.get("POSTGRES_PORT") or "5432"
     return f"postgres://{user}:{password}@{host}:{port}/{name}"
