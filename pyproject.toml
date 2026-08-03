@@ -214,7 +214,7 @@ dependencies = [
     "posthog>=7.35.4",
     "psycopg[binary]>=3.3.3",
     "python-slugify==8.0.4",
-    "redis==7.2.1",
+    "redis==8.1.0",
     "sentry-sdk>=2.66.1",
     "whitenoise==6.12.0",
 ]
