@@ -26,6 +26,10 @@ setup:
 env-refresh *args:
     @./bin/env-refresh {{args}}
 
+# sync-agents: Regenerate the Codex and Cursor mirrors of .claude/skills and CLAUDE.md.
+sync-agents:
+    @./bin/sync-agents
+
 # === Backing Services ===
 #
 # One Postgres and one Redis serve every worktree on this machine, so these

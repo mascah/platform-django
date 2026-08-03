@@ -28,6 +28,10 @@ pre-commit:
       exclude:
         - 'docs/**'
         - '**/migrations/**'
+        # Generated symlinks — sed -i would replace the link with a copy.
+        - '**/AGENTS.md'
+        - '.agents/**'
+        - '.cursor/**'
       run: |
         for file in {staged_files}; do
           case "$(uname)" in
@@ -43,6 +47,10 @@ pre-commit:
         - 'docs/**'
         - '**/migrations/**'
         - '**/devcontainer.json'
+        # Generated symlinks — appending follows the link to the canonical file.
+        - '**/AGENTS.md'
+        - '.agents/**'
+        - '.cursor/**'
       run: |
         for file in {staged_files}; do
           if [ -f "$file" ] && [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ]; then

@@ -1,0 +1,39 @@
+# Files an agent should not spend attention on. Cursor excludes these from
+# indexing and from the context it assembles; the equivalent for other
+# harnesses is their own ignore file.
+
+# Lockfiles — machine-written, enormous, and never the answer to a question.
+uv.lock
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Dependencies
+.venv/
+node_modules/
+
+# Build output
+dist/
+build/
+staticfiles/
+docs/_build/
+.turbo/
+apps/*/dist/
+packages/*/dist/
+
+# Caches and generated reports
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+coverage.xml
+test-results/
+playwright-report/
+
+# Local state
+.env
+.claude/worktrees/
+*.log
+*.sqlite3

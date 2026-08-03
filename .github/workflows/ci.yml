@@ -121,6 +121,28 @@ jobs:
           git diff --exit-code -- ':!uv.lock' ':!pnpm-lock.yaml' ':!CHANGELOG.md' || (echo "Files were modified by linters. Please run 'lefthook run pre-commit --all-files' locally and commit the changes." && exit 1)
 
   # ---------------------------------------------------------------------------
+  # Agent mirrors — a skill added without its mirrors is a build failure.
+  # Runs the same script `just sync-agents` runs, then fails on any diff. No
+  # toolchain: the script is bash, find and ln.
+  # ---------------------------------------------------------------------------
+  agent-mirrors:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v7
+
+      - name: Sync agent harness mirrors
+        run: ./bin/sync-agents
+
+      - name: Fail if the mirrors were out of date
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "Agent mirrors are out of date. Run 'just sync-agents' and commit the result."
+            exit 1
+          fi
+
+  # ---------------------------------------------------------------------------
   # Test & build jobs — only run when relevant files change
   # ---------------------------------------------------------------------------
   pytest:

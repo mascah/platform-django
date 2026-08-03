@@ -27,6 +27,12 @@ docs/
 # Local settings
 .claude/
 
+# Generated agent harness mirrors (symlinks into .claude/skills and CLAUDE.md)
+.agents/
+.cursor/
+AGENTS.md
+**/AGENTS.md
+
 # Temp files from parallel lefthook commands
 sed*
 
