@@ -153,7 +153,10 @@ uv init --package libs/<lib-name>
 ### Module Boundaries
 
 - Modules live in `platform_django/<module>/`
-- **No foreign keys between modules** — use integer IDs
+- Cross-module foreign keys need a stated justification — database-enforced
+  integrity or ownership, lifecycle coupling an integer ID would weaken, or
+  reverse traversal actually in use. Otherwise refer by integer ID. Where
+  nothing traverses backwards, `related_name="+"`. See ADR-0009.
 - Cross-module calls go downward: a higher module calls a lower module's service
   for a write or selector for a read
 - Return dataclasses (DTOs) for cross-module calls

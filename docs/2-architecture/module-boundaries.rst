@@ -1,165 +1,119 @@
 Module Boundary Enforcement
 ===========================
 
-We use static analysis and database design patterns to enforce module boundaries.
+What a boundary is checked by, and what still needs review.
 
 Overview
 --------
 
-The modular monolith depends on clear boundaries between modules. We enforce these with:
+A module boundary is held in two different ways, and the difference matters
+more than the rules themselves:
 
-1. **Import enforcement** --- Prevent code in one module from importing internals of another
-2. **Database enforcement** --- Prevent direct foreign key relationships between modules
+1. **Import enforcement** --- ``.importlinter`` checks dependency directions
+   and internal layers on every commit. What it declares, it proves.
+2. **Data-model review** --- cross-module relations need ownership and
+   integrity judgment that no linter can make for you.
 
-.. note::
-
-   Module boundaries don't mean modules are isolated islands. Valid **one-way dependencies**
-   are expected (e.g., ``workflows`` depends on ``organizations``). See :doc:`module-dependencies`
-   for when and how to structure these relationships.
+Treat the first as settled and the second as a decision you must state.
 
 Import Enforcement with import-linter
 -------------------------------------
 
-`import-linter <https://import-linter.readthedocs.io/>`_ analyzes the import graph and checks it against defined contracts. Configuration is in ``.importlinter`` at the repository root.
-
-Running import-linter
-^^^^^^^^^^^^^^^^^^^^^
-
-Check contracts manually::
+`import-linter <https://import-linter.readthedocs.io/>`_ analyses the import
+graph and checks it against the contracts in ``.importlinter`` at the
+repository root. Run it with::
 
     uv run lint-imports
 
-This runs in CI and blocks merges on violations.
+It runs in CI and in the pre-commit hook. This is the primary mechanical
+architecture gate.
 
-Contract Types
-^^^^^^^^^^^^^^
+What the shipped contracts assert
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Independence contracts** prevent modules from importing each other, even transitively.
+The template ships three contracts, all of them exercised by
+``platform_django/users/``:
 
-**Forbidden contracts** block specific imports (e.g., "orders cannot import user models directly").
+``infrastructure-isolation``
+   ``core`` is the lowest-level module and may not import a business module.
+   A new module is added to this contract's ``forbidden_modules``.
 
-**Layers contracts** enforce hierarchical architecture within a module (API -> services -> models).
+``users-internal-layers``
+   Within the module, ``api`` and ``views`` may call ``services`` and
+   ``selectors``, and never the reverse. A selector that imports a service
+   fails the build. ``tasks`` is parenthesised because the module ships no
+   Celery task --- an optional layer holds its position in the hierarchy for
+   the project that adds one.
 
-Violation output looks like:
+``api-views-do-not-query``
+   The layers contract gates direction, but it cannot catch a write
+   reimplemented inside a view: such a view imports nothing a layers contract
+   forbids. This one forbids the API viewset from importing the model at all,
+   so a query or a save placed back in it fails. ``allow_indirect_imports``
+   keeps the check on the viewset's own code --- reaching the model *through*
+   a selector or a serializer is the point of those layers.
 
-.. code-block:: text
+Add contracts for a new module as you create it, not afterwards. See
+:doc:`module-structure`.
 
-    BROKEN CONTRACTS:
+Cross-Module Model Relations
+----------------------------
 
-    No direct cross-module model imports
-    ------------------------------------
+There is no blanket "never use foreign keys across modules" rule. Evaluate
+each relation case by case, and record the reason.
 
-    platform_django.orders.services -> platform_django.users.models.User (l. 5)
+A cross-module foreign key needs a stated justification of a particular kind:
 
-Programmatic Testing with grimp
--------------------------------
+- ownership or referential integrity that is best enforced in the database;
+- lifecycle coupling tight enough that an integer identifier would lose a
+  guarantee the project needs;
+- reverse traversal that is actually used.
 
-For custom architectural rules, use ``grimp`` in pytest:
+The list is illustrative, not closed. What is required is a stated reason of
+that kind --- ``ForeignKey(settings.AUTH_USER_MODEL)`` recording who owns a
+row is the ordinary case, and writing it as a bare integer column surrenders
+referential integrity on the relation that most wants it.
 
-.. code-block:: python
+Prefer integer identifiers when the two lifecycles are independently owned, or
+when a later split of the module matters more than ORM convenience. That bias
+is what keeps such a split from becoming a schema migration.
 
-    # tests/test_architecture.py
-    import pytest
-    from grimp import build_graph
-
-    @pytest.fixture(scope="session")
-    def import_graph():
-        return build_graph("platform_django")
-
-    def test_no_circular_dependencies(import_graph):
-        modules = ["users", "orders", "billing"]
-        for module_a in modules:
-            for module_b in modules:
-                if module_a != module_b:
-                    chain = import_graph.find_shortest_chain(
-                        importer=f"platform_django.{module_a}",
-                        imported=f"platform_django.{module_b}"
-                    )
-                    if chain:
-                        reverse = import_graph.find_shortest_chain(
-                            importer=f"platform_django.{module_b}",
-                            imported=f"platform_django.{module_a}"
-                        )
-                        assert not reverse, f"Circular: {module_a} <-> {module_b}"
-
-Database Boundary Enforcement
------------------------------
-
-Import boundaries prevent code coupling, but foreign keys create database coupling. When module A has a foreign key to module B's model:
-
-- Module A's tests need module B's data setup (harder to test in isolation)
-- Changes to module B's schema can break module A's migrations
-- The relationship is implicit---it's not obvious from module A's code that it depends on B
-
-This isn't necessarily bad. For tightly coupled concepts, foreign keys are the right choice. But between truly separate domains, we prefer explicit contracts.
-
-The No-FK Pattern
-^^^^^^^^^^^^^^^^^
-
-.. note::
-
-   **Needs team discussion.** This pattern has trade-offs around user permission validation
-   and cross-module queries. We should discuss before applying widely.
-
-The pattern: **no foreign keys between modules**. Reference by ID only:
+Where a relation is justified but nothing traverses it backwards, declare it
+``related_name="+"``:
 
 .. code-block:: python
 
-    # platform_django/orders/models.py
     class Order(models.Model):
-        user_id = models.IntegerField(db_index=True)  # Not FK
-        created_at = models.DateTimeField(auto_now_add=True)
-        status = models.CharField(max_length=50)
+        # Ownership belongs in the database: an order without its user is
+        # meaningless, and the cascade is the behaviour we want.
+        owner = models.ForeignKey(
+            settings.AUTH_USER_MODEL,
+            on_delete=models.CASCADE,
+            related_name="+",  # nothing reads user.order_set
+        )
 
-Cross-module validation happens in services (see :doc:`service-layer` for DTOs and batch fetching patterns):
+This is the part most easily forgotten and the part that does the work: it
+keeps a justified foreign key from quietly becoming a two-way dependency
+through the reverse accessor.
 
-.. code-block:: python
+See ADR-0009 for the decision behind this policy.
 
-    # platform_django/orders/services.py
-    from platform_django.users.services import user_exists
+What import-linter Does Not Prove
+---------------------------------
 
-    def order_create(*, user_id: int, items: list[dict]) -> Order:
-        if not user_exists(user_id):
-            raise ValidationError("User does not exist")
-        return Order.objects.create(user_id=user_id)
+The contracts say nothing about:
 
-Trade-offs
-^^^^^^^^^^
+- whether a cross-module call returns a DTO or leaks an ORM model;
+- whether asynchronous side effects are scheduled after commit;
+- whether a foreign key across modules carries a justification.
 
-**Lost ORM features:**
-
-- No ``select_related()`` across modules
-- No ``prefetch_related()`` across modules
-- No cascading deletes (handle explicitly in the owning module's service)
-
-**More queries:** Cross-module operations may require additional queries. Mitigate with batch fetching (see :doc:`service-layer`).
-
-**Benefits:**
-
-- True module independence
-- Clear ownership of data
-- Testable in isolation
-- Explicit contracts via service functions
-
-When to Apply
-^^^^^^^^^^^^^
-
-Apply between **bounded contexts** --- modules representing different business domains. Within a single module, foreign keys are fine:
-
-.. code-block:: text
-
-    platform_django/
-    ├── users/           # FKs within are OK
-    │   └── models.py    # User, Profile, UserPreferences interlinked
-    ├── orders/          # FKs within are OK
-    │   └── models.py    # Order, OrderItem, OrderNote interlinked
-    │                    # BUT: Order.user_id is integer, not FK
+Those stay review concerns, backed by focused tests, until an executable check
+exists for them. A contract that passes is not a design that is correct.
 
 See Also
 --------
 
-- :doc:`/0-introduction/platform-architecture` --- Platform architecture overview
-- :doc:`module-structure` --- Creating new modules
-- :doc:`module-dependencies` --- Valid dependency patterns between modules
+- :doc:`module-dependencies` --- Which direction a dependency may run
+- :doc:`module-structure` --- Creating a new module and its contracts
+- :doc:`service-layer` --- Services, selectors and DTOs
 - :doc:`event-driven` --- When a boundary justifies domain events
-- :doc:`service-layer` --- DTOs and batch fetching

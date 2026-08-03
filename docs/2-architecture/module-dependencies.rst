@@ -1,117 +1,97 @@
 Module Dependency Patterns
 ==========================
 
-When and how modules can legitimately depend on each other.
+How modules may depend on each other, and which parts of that are enforced
+mechanically.
 
 Overview
 --------
 
-Module isolation doesn't mean zero dependencies. The goal is an **Acyclic Dependency Graph (DAG)**, not isolated islands.
+Module isolation does not mean zero dependencies. The goal is an acyclic graph,
+not a set of islands: a dependency is valid when it points downward, goes
+through the callee's public interface, and carries data rather than an ORM
+model.
 
-Valid dependencies exist when:
+``.importlinter`` is the mechanical gate for the directions encoded in it. That
+enforcement is deliberately partial --- it does not prove DTO-only contracts or
+post-commit scheduling. See :doc:`module-boundaries`.
 
-- A higher-level module needs data or behavior from a lower-level module
-- The dependency flows in one direction only
-- Communication uses explicit interfaces (service functions returning DTOs)
+Module Levels
+-------------
 
-Invalid dependencies create:
+.. list-table::
+   :header-rows: 1
+   :widths: 22 28 50
 
-- Circular imports (A imports B, B imports A)
-- Tight coupling to internal implementation details
-- Difficulty testing modules in isolation
+   * - Level
+     - Modules
+     - May depend on
+   * - Infrastructure
+     - ``core``, ``contrib``
+     - Infrastructure only
+   * - Foundational
+     - ``users``
+     - Infrastructure
+   * - Feature
+     - the modules your project adds
+     - Foundational and infrastructure; a dependency between two feature
+       modules must be declared explicitly
 
-The Module Hierarchy
---------------------
+The template ships the first two levels. A prototype is expected to run on
+``core``, ``users`` and one module of its own, so the feature level starts
+empty and stays that way until your project has a second bounded context worth
+separating.
 
-Modules form a hierarchy of abstraction levels:
+**The rule**: a higher-level module may depend on a lower-level one, never the
+reverse.
 
-.. code-block:: text
+Cross-Module Calls
+------------------
 
-        +-----------------+     +-----------------+
-        |   workflows     |     |     orders      |   <- Feature tier
-        +--------+--------+     +--------+--------+
-                 |                       |
-                 v                       v
-        +--------+--------+     +--------+--------+
-        | organizations   |     |     users       |   <- Domain core
-        +--------+--------+     +--------+--------+
-                 |                       |
-                 +----------+------------+
-                            |
-                            v
-                 +----------+----------+
-                 |    core / infra     |            <- Infrastructure
-                 +---------------------+
+A direct downward call is the established pattern. The direction is what makes
+it valid.
 
-**Infrastructure tier** (lowest level):
-
-- ``core`` --- Shared utilities, base models, common functionality
-
-**Domain Core tier** (middle level):
-
-- ``users`` --- User management, authentication
-- ``organizations`` --- Tenant configuration, org-level settings
-
-**Feature tier** (highest level):
-
-- ``workflows`` --- Business process automation
-- ``orders`` --- Order processing and fulfillment
-- ``billing`` --- Subscription and payment handling
-
-**The rule**: Higher-level modules can depend on lower-level modules, never the reverse.
-
-The Acyclic Dependencies Principle
-----------------------------------
-
-Dependencies must form a Directed Acyclic Graph (DAG):
-
-.. code-block:: text
-
-    Valid:                          Invalid:
-
-    workflows -> organizations      workflows -> organizations
-                                          ^            |
-                                          |            v
-                                          +--- orders -+
-
-**Valid**: ``workflows`` depends on ``organizations`` (one-way)
-
-**Invalid**: ``workflows`` depends on ``organizations``, and ``orders`` depends on ``workflows``, and ``organizations`` depends on ``orders`` (cycle)
-
-A dependency that wants to point upward is a design signal. Move the behaviour to the higher-level module, or---if the boundary genuinely warrants it---adopt events against the checklist in :doc:`event-driven`.
-
-Communication Patterns
-----------------------
-
-Cross-module communication is a direct downward call. The direction is what makes it valid.
-
-Synchronous: Service Calls (Downward)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When a higher-level module needs data or behavior from a lower-level module, use direct service calls:
+- Call the callee's ``services.py`` for a write and ``selectors.py`` for a
+  read.
+- Return primitives or a stable DTO, not an ORM model or a ``QuerySet``.
+- Import the module's public functions, not its internals. Importing another
+  module's models makes every field a de facto public API and defeats the
+  boundary.
 
 .. code-block:: python
 
-    # platform_django/workflows/services.py
-    from platform_django.organizations.services import organization_get_config
+    # platform_django/orders/services.py  (feature level)
+    from platform_django.users.selectors import user_profile_get
 
-    def workflow_create(*, org_id: int, name: str) -> Workflow:
-        """Create a workflow using org configuration."""
-        config = organization_get_config(org_id=org_id)  # Valid: downward call
-        return Workflow.objects.create(
-            organization_id=org_id,
-            name=name,
-            settings=config.workflow_settings,
+    def order_place(*, owner_id: int, items: list[dict]) -> Order:
+        profile = user_profile_get(user_id=owner_id)  # downward, returns a DTO
+        return Order.objects.create(
+            owner_id=owner_id,
+            contact_email=profile.email,
         )
 
-**Requirements for service calls across modules:**
+Side Effects
+------------
 
-- The called service must return a **DTO** (dataclass or Pydantic model), not an ORM model
-- The caller must be at a higher abstraction level than the callee
-- Document which services are part of the module's public API
+Work that must happen only after a successful write is scheduled from
+``transaction.on_commit()``, and anything asynchronous or retryable goes to
+Celery:
+
+.. code-block:: python
+
+    def order_place(*, owner_id: int, items: list[dict]) -> Order:
+        with transaction.atomic():
+            order = Order.objects.create(owner_id=owner_id)
+            order_id = order.pk  # snapshot a primitive, not the instance
+            transaction.on_commit(lambda: order_confirm_task.delay(order_id))
+        return order
+
+Capture stable primitives into the callback. Closing over a mutable ORM
+instance schedules whatever that object happens to hold when the callback runs,
+which is not necessarily what was committed.
 
 Upward or Lateral Communication
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-------------------------------
 
 There is no downward call available when a lower-level module needs to notify a
 higher-level one, or when two modules at the same level need to react to each
@@ -127,228 +107,46 @@ Resolve it in this order:
    :doc:`event-driven` states the three boundaries that justify one and the
    six-item checklist an adoption must answer first.
 
-Decision Framework
-------------------
+Domain events are candidate architecture, not a default. They are not required
+for a valid downward dependency, and code written against a bus that does not
+exist is code that does not run.
 
-Use this flowchart to decide how one module reaches another:
+Decision Summary
+----------------
 
-.. code-block:: text
++-------------------------+------------------------------------------------+
+| Scenario                | Pattern                                        |
++=========================+================================================+
+| Need data or behaviour  | Direct downward call: selector for a read,     |
+| from a lower module     | service for a write. Return a DTO.             |
++-------------------------+------------------------------------------------+
+| Lower module needs to   | Move the behaviour up, or extract a shared     |
+| notify a higher one     | lower-level module.                            |
++-------------------------+------------------------------------------------+
+| Fire-and-forget side    | Celery task queued from ``on_commit()`` by the |
+| effect                  | owning module's service.                       |
++-------------------------+------------------------------------------------+
+| Three or more modules   | Justify events against the adoption checklist  |
+| react to one occurrence | in :doc:`event-driven`.                        |
++-------------------------+------------------------------------------------+
 
-    Need to communicate between modules?
-           |
-           v
-    Is the caller higher-level than the callee?
-           |
-           +---- YES --> Service call for a write, selector for a read.
-           |             Return a DTO, not an ORM model.
-           |
-           +---- NO  --> STOP. A direct import here creates a cycle.
-                         Move the behaviour up, or extract a shared
-                         lower-level module. If neither fits, see
-                         event-driven for the events decision.
+Anti-Patterns
+-------------
 
-**Summary:**
+**Lower module importing from higher.** Move the aggregation to a higher-level
+module that may call both.
 
-+-------------------+---------------------------+---------------------------+
-| Scenario          | Pattern                   | Example                   |
-+===================+===========================+===========================+
-| Need data from    | Service call returning    | ``workflows`` calls       |
-| lower-level       | DTO                       | ``organizations``         |
-| module            |                           | ``.get_config()``         |
-+-------------------+---------------------------+---------------------------+
-| Lower module      | Move the behaviour to the | ``workflows`` reads org   |
-| needs to notify   | higher module, or extract | config on its own         |
-| higher modules    | a shared lower one        | schedule                  |
-+-------------------+---------------------------+---------------------------+
-| Fire-and-forget   | Celery task queued by the | Audit logging queued in   |
-| side effects      | owning module's service   | the service that wrote    |
-+-------------------+---------------------------+---------------------------+
-| Three or more     | Justify events against    | See :doc:`event-driven`   |
-| modules react to  | the adoption checklist    |                           |
-| one occurrence    |                           |                           |
-+-------------------+---------------------------+---------------------------+
+**Returning ORM models across a boundary.** Return a DTO; the model's fields
+are not a contract.
 
-Worked Example: Organizations and Workflows
--------------------------------------------
-
-This example demonstrates the complete pattern for two modules with a valid one-way dependency.
-
-**Module structure:**
-
-.. code-block:: text
-
-    platform_django/
-    ├── organizations/
-    │   ├── models.py           # Organization model
-    │   ├── services.py         # Public API for writes, returns DTOs
-    │   └── selectors.py        # Public API for reads, returns DTOs
-    └── workflows/
-        ├── models.py           # Workflow model (references org by ID)
-        └── services.py         # Imports from organizations.services
-
-**The organizations module's public interface:**
-
-.. code-block:: python
-
-    # platform_django/organizations/services.py
-    from dataclasses import dataclass
-    from django.db import transaction
-    from platform_django.organizations.models import Organization
-
-    @dataclass(frozen=True)
-    class OrganizationConfigDTO:
-        """Data transfer object for organization configuration."""
-        id: int
-        name: str
-        workflow_settings: dict
-        feature_flags: dict
-
-    # === PUBLIC API ===
-
-    def organization_get_config(*, org_id: int) -> OrganizationConfigDTO:
-        """
-        Get organization configuration.
-
-        This is part of the public API for cross-module use.
-        Returns a DTO, not the ORM model.
-        """
-        org = Organization.objects.get(id=org_id)
-        return OrganizationConfigDTO(
-            id=org.id,
-            name=org.name,
-            workflow_settings=org.workflow_settings,
-            feature_flags=org.feature_flags,
-        )
-
-    def organization_update_config(
-        *,
-        org_id: int,
-        workflow_settings: dict | None = None,
-        feature_flags: dict | None = None,
-    ) -> OrganizationConfigDTO:
-        """
-        Update organization configuration.
-
-        Callers that need the new values read them through
-        organization_get_config.
-        """
-        with transaction.atomic():
-            org = Organization.objects.select_for_update().get(id=org_id)
-
-            if workflow_settings is not None:
-                org.workflow_settings = workflow_settings
-            if feature_flags is not None:
-                org.feature_flags = feature_flags
-            org.save()
-
-        return organization_get_config(org_id=org_id)
-
-**The workflows module consuming the interface:**
-
-.. code-block:: python
-
-    # platform_django/workflows/services.py
-    from platform_django.organizations.services import organization_get_config
-    from platform_django.workflows.models import Workflow
-
-    def workflow_create(*, org_id: int, name: str, steps: list[dict]) -> Workflow:
-        """
-        Create a new workflow for an organization.
-
-        Uses organization config to apply org-level defaults.
-        """
-        config = organization_get_config(org_id=org_id)
-
-        # Apply org-level workflow settings as defaults
-        default_settings = config.workflow_settings.get("defaults", {})
-
-        return Workflow.objects.create(
-            organization_id=org_id,  # Integer reference, not FK
-            name=name,
-            steps=steps,
-            settings={**default_settings},
-        )
-
-Enforcing with import-linter
-----------------------------
-
-Use ``import-linter`` layers contracts to enforce the module hierarchy:
-
-.. code-block:: ini
-
-    # .importlinter
-
-    [importlinter]
-    root_package = platform_django
-
-    # Enforce module hierarchy
-    [importlinter:contract:module-hierarchy]
-    name = Module hierarchy is respected
-    type = layers
-    layers =
-        # Feature tier (can import from domain core and infrastructure)
-        platform_django.workflows
-        platform_django.orders
-        platform_django.billing
-        # Domain core (can import from infrastructure only)
-        platform_django.organizations
-        platform_django.users
-        # Infrastructure (cannot import from higher levels)
-        platform_django.core
-
-With this configuration, ``import-linter`` will fail if:
-
-- ``organizations`` tries to import from ``workflows`` (lower importing higher)
-- ``core`` tries to import from ``users`` (infrastructure importing domain core)
-
-Run the check with::
-
-    uv run lint-imports
-
-See :doc:`module-boundaries` for more on import-linter configuration.
-
-Common Anti-Patterns
---------------------
-
-**Anti-pattern 1: Lower module importing from higher**
-
-.. code-block:: python
-
-    # BAD: organizations/services.py
-    from platform_django.workflows.services import workflow_count_for_org  # Wrong direction!
-
-    def organization_get_stats(org_id: int) -> dict:
-        return {"workflow_count": workflow_count_for_org(org_id)}
-
-**Fix**: Move the stats aggregation to a higher-level module that may call both.
-
-**Anti-pattern 2: Returning ORM models across module boundaries**
-
-.. code-block:: python
-
-    # BAD: organizations/services.py
-    def organization_get(org_id: int) -> Organization:  # Leaks internal model
-        return Organization.objects.get(id=org_id)
-
-**Fix**: Return a DTO instead. This keeps the internal model structure hidden.
-
-**Anti-pattern 3: Reaching around the public interface**
-
-.. code-block:: python
-
-    # BAD: workflows/services.py
-    from platform_django.organizations.models import Organization  # Internal model
-
-    def workflow_settings_for(org_id: int) -> dict:
-        return Organization.objects.get(id=org_id).workflow_settings
-
-**Fix**: Call the lower module's selector. Importing its models makes every
-field a de facto public API and defeats the DTO boundary.
+**Reaching around the public interface.** Importing another module's models to
+run your own query bypasses its access scoping, which is the thing its
+selectors exist to apply.
 
 See Also
 --------
 
-- :doc:`module-boundaries` --- Enforcing boundaries with import-linter
-- :doc:`service-layer` --- Service/selector pattern and DTOs
+- :doc:`module-boundaries` --- What the contracts prove, and what they do not
+- :doc:`service-layer` --- Writing the services and selectors being called
+- :doc:`module-structure` --- Creating a new module
 - :doc:`event-driven` --- When a boundary justifies domain events
-- :doc:`module-structure` --- Creating new modules
