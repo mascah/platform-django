@@ -38,7 +38,7 @@ How Modules Keep Things Separate
 Even in a single codebase, we maintain boundaries:
 
 - Each domain gets its own Django app in ``platform_django/``
-- Modules communicate through explicit interfaces---service calls or domain events
+- Modules communicate through explicit interfaces---a higher module calls a lower module's service or selector
 - We use import-linter to catch accidental cross-module dependencies
 - Testing can happen at the module level
 

@@ -23,7 +23,6 @@ Project Structure
     ├── platform_django/         # Django application
     │   ├── users/               # User domain module
     │   ├── core/                # Shared utilities and base models
-    │   ├── domain_events/       # Event bus infrastructure
     │   └── [your modules]/      # Add domain modules here
     └── docker/                  # Docker configurations
 
@@ -42,7 +41,7 @@ Add new modules as sibling directories to ``users/``. See :doc:`/2-architecture/
 
 **Patterns we're trying:**
 
-- We're using domain events for cross-module communication. See :doc:`/2-architecture/event-driven`.
+- We're calling downward between modules --- a higher module calls a lower module's service or selector. Events are a decision, not a default. See :doc:`/2-architecture/event-driven`.
 - We're enforcing module boundaries with import-linter. See :doc:`/2-architecture/module-boundaries`.
 - We're putting business logic in services and read operations in selectors, not views. See :doc:`/2-architecture/service-layer`.
 
