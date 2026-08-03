@@ -116,6 +116,49 @@ change. Structural edits --- dropping a job, changing a service image --- cost
 one ordinary conflict whenever the template touches the same region. Keep such
 edits at the edges of the file rather than woven through the middle.
 
+Migrations
+----------
+
+Migrations travel one way. The template's arrive with a merge; a project's are
+never cherry-picked back, because they describe that project's schema.
+
+That still leaves the same trap as the generated client. A project adding a
+migration to ``platform_django.users`` while the template adds one too produces
+two ``0002_`` files --- different filenames, both additions, merged cleanly ---
+and a migration graph with two leaves that Django will not apply.
+
+``django-linear-migrations`` makes that collide instead. Each app carries a
+``migrations/max_migration.txt`` naming its latest migration, so two branches
+adding a migration to the same app change the same line and the merge stops.
+Resolve it by rebasing the migration rather than by editing the file::
+
+    python manage.py rebase_migration <app_label>
+
+A system check fails if the file falls out of step with the directory, so it
+cannot quietly rot.
+
+The same applies within one project: two worktrees, or two agents, each adding a
+migration to the same app now conflict at merge rather than at ``migrate``.
+
+Backward compatibility
+^^^^^^^^^^^^^^^^^^^^^^
+
+``django-migration-linter`` runs in CI over the migrations a branch adds, and
+fails on operations that break a process still running the old code --- dropping
+or renaming a column or table, adding a ``NOT NULL`` column without a default,
+altering a column's type. Migrations are applied before new code is serving, so
+that window is real on any deployment that does not stop the world.
+
+The usual fix is to split the change across two deploys: add the new column,
+ship code that writes both, backfill, then drop the old one. Where a migration
+is genuinely safe for a reason the linter cannot see, mark it::
+
+    from django_migration_linter import IgnoreMigration
+
+
+    class Migration(IgnoreMigration, migrations.Migration):
+        ...
+
 Architecture decision records
 -----------------------------
 

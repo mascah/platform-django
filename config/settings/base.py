@@ -92,6 +92,9 @@ DJANGO_APPS = [
     "django.forms",
 ]
 THIRD_PARTY_APPS = [
+    # First, so its system check runs against the apps whose migrations it
+    # manages rather than before they are loaded.
+    "django_linear_migrations",
     "crispy_forms",
     "crispy_bootstrap5",
     "allauth",
@@ -106,6 +109,7 @@ THIRD_PARTY_APPS = [
     "drf_spectacular",
     "django_vite",
     "django_filters",
+    "django_migration_linter",
     "django_structlog",
     "django_tailwind_cli",
 ]

@@ -104,6 +104,15 @@ openapi:
     uv run python manage.py spectacular --file "$schema"
     cd apps/platform_django && pnpm openapi-ts -i "$schema"
 
+# lintmigrations: Flag migrations on this branch that break a rolling deploy.
+#
+# Always scoped to what the branch added. Run bare, the linter walks every
+# migration in the project, including third-party ones it cannot `sqlmigrate` --
+# allauth's mfa migration raises rather than reporting. CI runs this same
+# command.
+lintmigrations base="origin/main":
+    @uv run python manage.py lintmigrations --git-commit-id {{base}} --project-root-path .
+
 # === Documentation ===
 
 # docs: Build documentation.
