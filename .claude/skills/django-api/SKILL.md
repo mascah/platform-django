@@ -65,7 +65,9 @@ than relying on queryset inference:
 ```python
 @extend_schema(responses={200: OrderSerializer(many=True)})
 def get(self, request):
-    return Response(OrderSerializer(order_list(fetched_by_id=request.user.pk), many=True).data)
+    return Response(
+        OrderSerializer(order_list(fetched_by_id=request.user.pk), many=True).data
+    )
 ```
 
 Follow the module's current routing style. If it already uses nested routers or
