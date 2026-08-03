@@ -33,9 +33,17 @@ response = Client(headers={"host": "localhost"}).get("/healthz/")
 assert response.status_code == 200, response.status_code
 
 # Dispatch runs inline rather than hanging on a broker that is not there.
-from platform_django.users.tasks import get_users_count
+# The task is defined here rather than imported: the template ships no Celery
+# task of its own, and this asserts the dispatch path, not any one task.
+from celery import shared_task
 
-assert isinstance(get_users_count.delay().get(), int)
+
+@shared_task
+def _probe():
+    return 1
+
+
+assert _probe.delay().get() == 1
 """
 
 

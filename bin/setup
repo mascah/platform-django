@@ -86,6 +86,15 @@ info "Installing git hooks..."
 "$MISE" exec -- lefthook install
 success "Git hooks installed"
 
+# -----------------------------------------------------------------------------
+# 5. Agent harness mirrors
+# -----------------------------------------------------------------------------
+# Committed, so a clean checkout already has them. Run here anyway: it is what
+# makes them correct after a merge that added a skill, and it costs nothing.
+info "Syncing agent harness mirrors..."
+"$SCRIPT_DIR/sync-agents" >/dev/null
+success "Agent mirrors synced"
+
 echo ""
 success "Setup complete."
 echo ""

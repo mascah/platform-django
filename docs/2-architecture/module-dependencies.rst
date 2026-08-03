@@ -46,7 +46,6 @@ Modules form a hierarchy of abstraction levels:
 **Infrastructure tier** (lowest level):
 
 - ``core`` --- Shared utilities, base models, common functionality
-- ``domain_events`` --- Event bus infrastructure
 
 **Domain Core tier** (middle level):
 
@@ -79,12 +78,12 @@ Dependencies must form a Directed Acyclic Graph (DAG):
 
 **Invalid**: ``workflows`` depends on ``organizations``, and ``orders`` depends on ``workflows``, and ``organizations`` depends on ``orders`` (cycle)
 
-When you need "reverse" communication---a lower-level module notifying a higher-level one---use domain events instead of imports. This breaks the cycle.
+A dependency that wants to point upward is a design signal. Move the behaviour to the higher-level module, or---if the boundary genuinely warrants it---adopt events against the checklist in :doc:`event-driven`.
 
 Communication Patterns
 ----------------------
 
-Two patterns exist for cross-module communication, and the choice depends on **direction**.
+Cross-module communication is a direct downward call. The direction is what makes it valid.
 
 Synchronous: Service Calls (Downward)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -111,83 +110,42 @@ When a higher-level module needs data or behavior from a lower-level module, use
 - The caller must be at a higher abstraction level than the callee
 - Document which services are part of the module's public API
 
-Asynchronous: Domain Events (Upward or Lateral)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Upward or Lateral Communication
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When a lower-level module needs to notify higher-level modules about something that happened, emit an event:
+There is no downward call available when a lower-level module needs to notify a
+higher-level one, or when two modules at the same level need to react to each
+other. The import contracts reject the import, and they are right to.
 
-.. code-block:: python
+Resolve it in this order:
 
-    # platform_django/organizations/services.py
-    from django.db import transaction
-    from platform_django.domain_events.bus import event_bus
-    from platform_django.domain_events.events import OrganizationConfigChangedEvent
-
-    def organization_update_config(*, org_id: int, **updates) -> OrganizationConfigDTO:
-        """Update org config and notify subscribers."""
-        with transaction.atomic():
-            org = Organization.objects.get(id=org_id)
-            for key, value in updates.items():
-                setattr(org, key, value)
-            org.save()
-
-            # Notify via event --- NOT by importing workflows
-            def _publish():
-                event_bus.publish(OrganizationConfigChangedEvent(org_id=org.id))
-            transaction.on_commit(_publish)
-
-        return organization_get_config(org_id=org_id)
-
-The ``workflows`` module subscribes to this event without ``organizations`` needing to know about it:
-
-.. code-block:: python
-
-    # platform_django/workflows/apps.py
-    from django.apps import AppConfig
-
-    class WorkflowsConfig(AppConfig):
-        name = "platform_django.workflows"
-
-        def ready(self) -> None:
-            from platform_django.domain_events.bus import event_bus
-            from platform_django.domain_events.events import OrganizationConfigChangedEvent
-            from platform_django.workflows.handlers import handle_org_config_changed
-
-            event_bus.subscribe(OrganizationConfigChangedEvent, handle_org_config_changed)
-
-**This pattern enables bidirectional communication without circular dependencies:**
-
-.. code-block:: text
-
-    workflows                       organizations
-    +--------+                      +------------+
-    |        |                      |            |
-    |   -------- service call ------->           |  (sync, returns DTO)
-    |        |                      |            |
-    |   <-------- domain event -----             |  (async, via event bus)
-    +--------+                      +------------+
+#. **Move the behaviour up.** The reaction usually belongs to the higher-level
+   module, which may already call downward for the data it needs.
+#. **Extract a lower-level module** that both can depend on, when two lateral
+   modules share a concern neither owns.
+#. **Adopt events** --- last, and deliberately. The template ships no event bus;
+   :doc:`event-driven` states the three boundaries that justify one and the
+   six-item checklist an adoption must answer first.
 
 Decision Framework
 ------------------
 
-Use this flowchart to decide between service calls and domain events:
+Use this flowchart to decide how one module reaches another:
 
 .. code-block:: text
 
     Need to communicate between modules?
            |
            v
-    Does caller need an immediate response?
+    Is the caller higher-level than the callee?
            |
-           +---- YES --> Is caller higher-level than callee?
-           |                  |
-           |                  +---- YES --> Use service call returning DTO
-           |                  |
-           |                  +---- NO  --> STOP! This creates a circular dep.
-           |                               Refactor: callee emits event,
-           |                               caller subscribes
+           +---- YES --> Service call for a write, selector for a read.
+           |             Return a DTO, not an ORM model.
            |
-           +---- NO --> Use domain event (any direction is fine)
+           +---- NO  --> STOP. A direct import here creates a cycle.
+                         Move the behaviour up, or extract a shared
+                         lower-level module. If neither fits, see
+                         event-driven for the events decision.
 
 **Summary:**
 
@@ -198,17 +156,16 @@ Use this flowchart to decide between service calls and domain events:
 | lower-level       | DTO                       | ``organizations``         |
 | module            |                           | ``.get_config()``         |
 +-------------------+---------------------------+---------------------------+
-| Lower module      | Domain event              | ``organizations`` emits   |
-| needs to notify   |                           | ``ConfigChangedEvent``    |
-| higher modules    |                           |                           |
+| Lower module      | Move the behaviour to the | ``workflows`` reads org   |
+| needs to notify   | higher module, or extract | config on its own         |
+| higher modules    | a shared lower one        | schedule                  |
 +-------------------+---------------------------+---------------------------+
-| Multiple modules  | Domain event              | ``orders`` emits          |
-| react to same     |                           | ``OrderPlacedEvent``,     |
-| occurrence        |                           | billing + fulfillment     |
-|                   |                           | both handle               |
+| Fire-and-forget   | Celery task queued by the | Audit logging queued in   |
+| side effects      | owning module's service   | the service that wrote    |
 +-------------------+---------------------------+---------------------------+
-| Fire-and-forget   | Domain event              | Any audit logging,        |
-| side effects      |                           | analytics, notifications  |
+| Three or more     | Justify events against    | See :doc:`event-driven`   |
+| modules react to  | the adoption checklist    |                           |
+| one occurrence    |                           |                           |
 +-------------------+---------------------------+---------------------------+
 
 Worked Example: Organizations and Workflows
@@ -223,13 +180,11 @@ This example demonstrates the complete pattern for two modules with a valid one-
     platform_django/
     ├── organizations/
     │   ├── models.py           # Organization model
-    │   ├── services.py         # Public API with DTOs
-    │   └── events.py           # Events this module emits
+    │   ├── services.py         # Public API for writes, returns DTOs
+    │   └── selectors.py        # Public API for reads, returns DTOs
     └── workflows/
         ├── models.py           # Workflow model (references org by ID)
-        ├── services.py         # Imports from organizations.services
-        ├── handlers.py         # Handles events from organizations
-        └── apps.py             # Registers event handlers
+        └── services.py         # Imports from organizations.services
 
 **The organizations module's public interface:**
 
@@ -238,9 +193,7 @@ This example demonstrates the complete pattern for two modules with a valid one-
     # platform_django/organizations/services.py
     from dataclasses import dataclass
     from django.db import transaction
-    from platform_django.domain_events.bus import event_bus
     from platform_django.organizations.models import Organization
-    from platform_django.organizations.events import OrganizationConfigChangedEvent
 
     @dataclass(frozen=True)
     class OrganizationConfigDTO:
@@ -276,7 +229,8 @@ This example demonstrates the complete pattern for two modules with a valid one-
         """
         Update organization configuration.
 
-        Emits OrganizationConfigChangedEvent so dependent modules can react.
+        Callers that need the new values read them through
+        organization_get_config.
         """
         with transaction.atomic():
             org = Organization.objects.select_for_update().get(id=org_id)
@@ -286,11 +240,6 @@ This example demonstrates the complete pattern for two modules with a valid one-
             if feature_flags is not None:
                 org.feature_flags = feature_flags
             org.save()
-
-            # Emit event for subscribers (like workflows module)
-            def _publish():
-                event_bus.publish(OrganizationConfigChangedEvent(org_id=org.id))
-            transaction.on_commit(_publish)
 
         return organization_get_config(org_id=org_id)
 
@@ -320,39 +269,6 @@ This example demonstrates the complete pattern for two modules with a valid one-
             settings={**default_settings},
         )
 
-**The workflows module reacting to organization changes:**
-
-.. code-block:: python
-
-    # platform_django/workflows/handlers.py
-    import logging
-    from platform_django.organizations.events import OrganizationConfigChangedEvent
-    from platform_django.organizations.services import organization_get_config
-    from platform_django.workflows.models import Workflow
-
-    logger = logging.getLogger(__name__)
-
-    def handle_org_config_changed(event: OrganizationConfigChangedEvent) -> None:
-        """
-        React to organization configuration changes.
-
-        Updates workflow defaults when org settings change.
-        """
-        config = organization_get_config(org_id=event.org_id)
-        new_defaults = config.workflow_settings.get("defaults", {})
-
-        # Update workflows that use org defaults
-        updated = Workflow.objects.filter(
-            organization_id=event.org_id,
-            uses_org_defaults=True,
-        ).update(settings=new_defaults)
-
-        logger.info(
-            "Updated %d workflows for org %d after config change",
-            updated,
-            event.org_id,
-        )
-
 Enforcing with import-linter
 ----------------------------
 
@@ -379,7 +295,6 @@ Use ``import-linter`` layers contracts to enforce the module hierarchy:
         platform_django.users
         # Infrastructure (cannot import from higher levels)
         platform_django.core
-        platform_django.domain_events
 
 With this configuration, ``import-linter`` will fail if:
 
@@ -405,7 +320,7 @@ Common Anti-Patterns
     def organization_get_stats(org_id: int) -> dict:
         return {"workflow_count": workflow_count_for_org(org_id)}
 
-**Fix**: Have ``organizations`` emit an event, or move the stats aggregation to a higher-level module.
+**Fix**: Move the stats aggregation to a higher-level module that may call both.
 
 **Anti-pattern 2: Returning ORM models across module boundaries**
 
@@ -417,20 +332,23 @@ Common Anti-Patterns
 
 **Fix**: Return a DTO instead. This keeps the internal model structure hidden.
 
-**Anti-pattern 3: Circular event handlers**
+**Anti-pattern 3: Reaching around the public interface**
 
 .. code-block:: python
 
-    # BAD: Creates implicit circular dependency via events
-    # organizations emits ConfigChanged -> workflows handles it and emits WorkflowUpdated
-    # -> organizations handles WorkflowUpdated and emits ConfigChanged again
+    # BAD: workflows/services.py
+    from platform_django.organizations.models import Organization  # Internal model
 
-**Fix**: Events should not trigger chains that loop back. If you find yourself in this situation, reconsider the module boundaries.
+    def workflow_settings_for(org_id: int) -> dict:
+        return Organization.objects.get(id=org_id).workflow_settings
+
+**Fix**: Call the lower module's selector. Importing its models makes every
+field a de facto public API and defeats the DTO boundary.
 
 See Also
 --------
 
 - :doc:`module-boundaries` --- Enforcing boundaries with import-linter
 - :doc:`service-layer` --- Service/selector pattern and DTOs
-- :doc:`event-driven` --- Domain events and the event bus
+- :doc:`event-driven` --- When a boundary justifies domain events
 - :doc:`module-structure` --- Creating new modules

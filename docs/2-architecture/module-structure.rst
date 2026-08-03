@@ -33,7 +33,6 @@ The project layout::
     ├── platform_django/              # Modular monolith container
     │   ├── users/                 # User management module
     │   ├── core/                  # Shared utilities and base models
-    │   ├── domain_events/         # Event bus infrastructure
     │   └── <your_new_module>/     # Add new modules here
     ├── manage.py
     ├── README.md
@@ -67,7 +66,6 @@ Follow these steps to add a new module:
     LOCAL_APPS = [
         "platform_django.users",
         "platform_django.core",
-        "platform_django.domain_events",
         "platform_django.<module_name>",  # Add your new module
     ]
 
@@ -123,40 +121,15 @@ Best Practices
 
 **Module communication:**
 
-Modules communicate through explicit interfaces. Two patterns exist:
-
-- **Direct service calls** --- For one-way dependencies where a higher-level module calls a lower-level one. The callee returns a DTO, not an ORM model.
-- **Domain events** --- For loose coupling, especially when a lower-level module needs to notify higher-level modules without importing from them.
+Modules communicate by **direct downward call**: a higher-level module calls a lower-level module's service for a write, or its selector for a read. The callee returns a DTO, not an ORM model.
 
 Key rules:
 
 - Import only from a module's public interface, not internal implementation details
 - Dependencies must be acyclic---higher-level modules depend on lower-level ones, never the reverse
-- Use events to enable "reverse" communication without creating circular imports
+- A dependency that wants to point upward is a design signal, not a case for an ad-hoc import. See :doc:`event-driven` for when that boundary justifies events.
 
 See :doc:`module-dependencies` for the complete decision framework.
-
-Registering Event Handlers
---------------------------
-
-If your module needs to react to events from other modules, register handlers in ``AppConfig.ready()``:
-
-.. code-block:: python
-
-    # platform_django/<module_name>/apps.py
-    from django.apps import AppConfig
-
-    class ModuleNameConfig(AppConfig):
-        name = "platform_django.<module_name>"
-        verbose_name = "Module Name"
-
-        def ready(self) -> None:
-            """Register event handlers when the app is ready."""
-            from platform_django.domain_events.bus import event_bus
-            from platform_django.domain_events.events import SomeEvent
-            from platform_django.<module_name>.handlers import handle_some_event
-
-            event_bus.subscribe(SomeEvent, handle_some_event)
 
 Adding API Endpoints
 --------------------
@@ -182,4 +155,4 @@ See Also
 - :doc:`/0-introduction/platform-architecture` --- Platform architecture overview
 - :doc:`module-dependencies` --- Valid dependency patterns between modules
 - :doc:`module-boundaries` --- Enforcing boundaries with import-linter
-- :doc:`event-driven` --- Decoupling modules with domain events
+- :doc:`event-driven` --- When a boundary justifies domain events

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bin/sync-agents — mirror the canonical agent instructions to every harness
+# =============================================================================
+# A skill is written once, in .claude/skills/, and every harness reads the same
+# bytes: Codex through .agents/skills/ and AGENTS.md, Cursor through
+# .cursor/skills/. The mirrors are symlinks, so editing either side edits the
+# canonical file and a mirror cannot go stale.
+#
+# The mirrors are committed. CI runs this script and fails on any diff, which
+# is what makes "add a skill, forget its mirrors" a build failure rather than a
+# rule someone has to remember.
+#
+# Idempotent — safe to run repeatedly.
+#
+# Usage: bin/sync-agents
+# =============================================================================
+
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+# link <target, relative to the link's own directory> <link path>
+#
+# Falls back to copying where the filesystem refuses symlinks — a Windows
+# checkout without SeCreateSymbolicLinkPrivilege. A copy is stale-able, which
+# is exactly what CI's diff check is there to catch; a checkout full of text
+# files containing paths is not recoverable at all.
+link() {
+    local target=$1 link=$2
+    rm -rf "$link"
+    ln -s "$target" "$link" 2>/dev/null || cp -R "$(dirname "$link")/$target" "$link"
+}
+
+# -----------------------------------------------------------------------------
+# Skills
+# -----------------------------------------------------------------------------
+for harness in .agents .cursor; do
+    rm -rf "$harness/skills"
+    mkdir -p "$harness/skills"
+    for skill in .claude/skills/*/; do
+        [[ -d "$skill" ]] || continue
+        name="$(basename "$skill")"
+        link "../../.claude/skills/$name" "$harness/skills/$name"
+    done
+done
+
+# -----------------------------------------------------------------------------
+# AGENTS.md, alongside every CLAUDE.md
+# -----------------------------------------------------------------------------
+while IFS= read -r -d '' claude_md; do
+    link CLAUDE.md "${claude_md%CLAUDE.md}AGENTS.md"
+done < <(
+    find . -name CLAUDE.md \
+        -not -path './node_modules/*' \
+        -not -path './.claude/worktrees/*' \
+        -print0
+)
+
+echo "Agent mirrors synced."

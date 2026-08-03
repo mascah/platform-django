@@ -168,7 +168,7 @@ import-linter catches this::
 
     orders cannot import from billing (independence contract violated)
 
-Claude fixes it by using domain events instead.
+Claude fixes it by calling ``orders``' selector for a DTO, or by moving the behaviour into the higher-level module.
 
 Preventing Hook Bypass
 ----------------------

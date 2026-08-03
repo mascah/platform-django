@@ -3,6 +3,14 @@ Service Layer Patterns
 
 Business logic organization using services (writes) and selectors (reads), based on the `HackSoft Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_.
 
+.. note::
+
+   ``platform_django/users/`` is the worked example. ``selectors.py`` holds the
+   access-scoped read the API viewset serves, ``services.py`` holds the profile
+   write both the HTML view and the DRF update mixin call, and
+   ``tests/test_services.py`` and ``tests/test_selectors.py`` are the test
+   shapes to copy. Read those five files before writing your own.
+
 Progressive Complexity
 ----------------------
 
@@ -114,7 +122,7 @@ When you are ready for the full pattern, the split is straightforward:
 **Services** handle write operations:
 
 - Create, update, or delete data
-- Trigger side effects (emails, events, external APIs)
+- Trigger side effects (emails, queued tasks, external APIs)
 - Enforce business rules on mutations
 
 **Selectors** handle read operations:
@@ -168,7 +176,7 @@ Where Business Logic Should NOT Live
         email = serializers.EmailField()
         name = serializers.CharField(max_length=100)
 
-**Not in signals** --- Signals create hidden coupling. Use explicit service calls or domain events.
+**Not in signals** --- Signals create hidden coupling. Call the service explicitly.
 
 **Not in model save()** --- Overriding ``save()`` for business logic makes models unpredictable.
 
@@ -231,7 +239,7 @@ For internal module use, returning model instances is fine.
 
    DTOs are **required** for cross-module service calls. This keeps internal model
    structures hidden and prevents tight coupling. See :doc:`module-dependencies` for
-   when cross-module service calls are appropriate vs. using events.
+   which direction a cross-module call may run in.
 
 Atomic Transactions
 ^^^^^^^^^^^^^^^^^^^
@@ -344,4 +352,4 @@ See Also
 - `HackSoft Django Styleguide <https://github.com/HackSoftware/Django-Styleguide>`_
 - :doc:`module-boundaries` --- Enforcing boundaries between modules
 - :doc:`module-dependencies` --- Valid dependency patterns between modules
-- :doc:`event-driven` --- Cross-module communication
+- :doc:`event-driven` --- When a boundary justifies domain events

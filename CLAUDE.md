@@ -154,7 +154,8 @@ uv init --package libs/<lib-name>
 
 - Modules live in `platform_django/<module>/`
 - **No foreign keys between modules** — use integer IDs
-- Cross-module communication via domain events only
+- Cross-module calls go downward: a higher module calls a lower module's service
+  for a write or selector for a read
 - Return dataclasses (DTOs) for cross-module calls
 
 ### Service/Selector Pattern
@@ -175,12 +176,11 @@ platform_django/<module>/
 └── tests/
 ```
 
-### Event-Driven Communication
+### Domain Events
 
-- Publish events with `transaction.on_commit()` — never before commit
-- Events are past-tense dataclasses (e.g., `OrderPlacedEvent`)
-- Event bus: `platform_django/domain_events/bus.py`
-- Register handlers in `AppConfig.ready()` with lazy imports
+The template ships no event bus. A reverse, lateral or multi-consumer boundary
+may justify one; adopting it means answering the six-item checklist in
+`docs/2-architecture/event-driven.rst` first. See ADR-0008.
 
 ## Frontend Integration
 
@@ -199,7 +199,6 @@ platform_django/<module>/
 ## Testing
 
 - `pytest` with `@pytest.mark.django_db`
-- `FakeEventBus` for testing event handlers
 - `django_capture_on_commit_callbacks` for transaction tests
 - No secrets in code — use environment variables
 

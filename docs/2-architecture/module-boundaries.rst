@@ -130,7 +130,7 @@ Trade-offs
 
 - No ``select_related()`` across modules
 - No ``prefetch_related()`` across modules
-- No cascading deletes (handle via events)
+- No cascading deletes (handle explicitly in the owning module's service)
 
 **More queries:** Cross-module operations may require additional queries. Mitigate with batch fetching (see :doc:`service-layer`).
 
@@ -161,5 +161,5 @@ See Also
 - :doc:`/0-introduction/platform-architecture` --- Platform architecture overview
 - :doc:`module-structure` --- Creating new modules
 - :doc:`module-dependencies` --- Valid dependency patterns between modules
-- :doc:`event-driven` --- Cross-module communication without imports
+- :doc:`event-driven` --- When a boundary justifies domain events
 - :doc:`service-layer` --- DTOs and batch fetching

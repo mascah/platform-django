@@ -62,6 +62,9 @@ export const schemaRetrieveOptions = (options?: Options<SchemaRetrieveData>) => 
 
 export const usersListQueryKey = (options?: Options<UsersListData>) => createQueryKey('usersList', options);
 
+/**
+ * Orchestration only: reads call the selector, writes call the service.
+ */
 export const usersListOptions = (options?: Options<UsersListData>) => queryOptions<UsersListResponse, DefaultError, UsersListResponse, ReturnType<typeof usersListQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await usersList({
@@ -77,6 +80,9 @@ export const usersListOptions = (options?: Options<UsersListData>) => queryOptio
 
 export const usersRetrieveQueryKey = (options: Options<UsersRetrieveData>) => createQueryKey('usersRetrieve', options);
 
+/**
+ * Orchestration only: reads call the selector, writes call the service.
+ */
 export const usersRetrieveOptions = (options: Options<UsersRetrieveData>) => queryOptions<UsersRetrieveResponse, DefaultError, UsersRetrieveResponse, ReturnType<typeof usersRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await usersRetrieve({
@@ -90,6 +96,9 @@ export const usersRetrieveOptions = (options: Options<UsersRetrieveData>) => que
     queryKey: usersRetrieveQueryKey(options)
 });
 
+/**
+ * Orchestration only: reads call the selector, writes call the service.
+ */
 export const usersPartialUpdateMutation = (options?: Partial<Options<UsersPartialUpdateData>>): UseMutationOptions<UsersPartialUpdateResponse, DefaultError, Options<UsersPartialUpdateData>> => {
     const mutationOptions: UseMutationOptions<UsersPartialUpdateResponse, DefaultError, Options<UsersPartialUpdateData>> = {
         mutationFn: async (fnOptions) => {
@@ -104,6 +113,9 @@ export const usersPartialUpdateMutation = (options?: Partial<Options<UsersPartia
     return mutationOptions;
 };
 
+/**
+ * Orchestration only: reads call the selector, writes call the service.
+ */
 export const usersUpdateMutation = (options?: Partial<Options<UsersUpdateData>>): UseMutationOptions<UsersUpdateResponse, DefaultError, Options<UsersUpdateData>> => {
     const mutationOptions: UseMutationOptions<UsersUpdateResponse, DefaultError, Options<UsersUpdateData>> = {
         mutationFn: async (fnOptions) => {
@@ -120,6 +132,9 @@ export const usersUpdateMutation = (options?: Partial<Options<UsersUpdateData>>)
 
 export const usersMeRetrieveQueryKey = (options?: Options<UsersMeRetrieveData>) => createQueryKey('usersMeRetrieve', options);
 
+/**
+ * Orchestration only: reads call the selector, writes call the service.
+ */
 export const usersMeRetrieveOptions = (options?: Options<UsersMeRetrieveData>) => queryOptions<UsersMeRetrieveResponse, DefaultError, UsersMeRetrieveResponse, ReturnType<typeof usersMeRetrieveQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await usersMeRetrieve({
