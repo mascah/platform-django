@@ -152,7 +152,7 @@ dev = [
     "Werkzeug[watchdog]==3.1.4",
     "ipdb==0.13.13",
     "watchfiles==1.2.0",
-    "mypy==1.19.1",
+    "mypy==2.3.0",
     "django-stubs[compatible-mypy]==6.0.7",
     "pytest==9.1.1",
     "pytest-sugar==1.1.1",
