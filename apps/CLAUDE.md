@@ -1,40 +1,37 @@
 # Frontend Applications
 
-## Structure
+- `apps/platform_django/` — the React SPA, built by Vite and served by Django at
+  `/app/`. Use the `vite-django` skill for anything about how it is mounted.
+- `apps/landing/` — the Astro landing page, pre-rendered and served at `/`.
 
-- Each app is a Vite + React SPA (or Astro site)
-- `apps/platform_django/` — Main app (served via django-vite)
-- `apps/landing/` — Landing page (Astro)
+Both are workspace members; shared UI and configs live in `packages/`.
 
-## API Client Generation
+## The API client is generated
 
-After backend API changes:
+`src/services/platform_django/` is generated from Django's OpenAPI schema and is
+never hand-edited. If the output is wrong, fix the serializer or the schema
+annotation and regenerate. Use the `openapi-client` skill — it covers the
+read/write split and the fact that the generator's configured port is not this
+worktree's port.
 
-```bash
-cd apps/platform_django && pnpm openapi-ts
-```
+Generated names follow the operation IDs, so hooks read as `usersListOptions()`,
+`usersRetrieveOptions({ path: { username } })` and
+`usersPartialUpdateMutation()`. Invalidate with the matching `...QueryKey()` on
+mutation success.
 
-Generates typed hooks in `src/services/platform_django/`
-
-## Type-Safe API Usage
-
-- Query: `useQuery(getUserOptions({ path: { id } }))`
-- Mutation: `useMutation(createUserMutation())`
-- Invalidate queries on mutation success
-
-## Feature Structure
+## Feature structure
 
 ```
 src/features/<feature>/
-├── components/    # Feature-specific components
-├── contexts/      # React contexts
-├── pages/         # Route pages
-└── index.ts       # Public exports
+├── components/
+├── contexts/
+├── pages/
+└── index.ts       # public exports — import a feature through this
 ```
 
-## Testing
+## Tests
 
-- Playwright for E2E tests
-- Page Object Model pattern
-- Use `data-testid` for selectors
-- Session storage reuse for auth
+No unit-test runner is wired here: `pnpm test` runs a Turbo task no package
+implements yet. Cover user-visible behaviour with the Playwright suite in `e2e/`
+— page objects, `data-testid` selectors, stored auth state. Read the `add-tests`
+skill before wiring a runner of your own.
