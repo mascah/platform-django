@@ -114,7 +114,7 @@ To run type checking::
 
 Or via Docker::
 
-    $ docker compose run --rm django mypy .
+    $ uv run mypy .
 
 .. note::
    The ``django_settings_module`` in ``[tool.django-stubs]`` must point to a valid settings file for the Django plugin to work correctly.

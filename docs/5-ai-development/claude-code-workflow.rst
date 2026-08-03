@@ -120,31 +120,34 @@ The Solution: Git Worktrees
 
 Git worktrees allow multiple working directories from a single repository. Each worktree has its own branch and working state, completely isolated from others.
 
-**Creating a new worktree** (with automatic port allocation)::
+**Creating a new worktree**::
 
-    # From main worktree
-    . bin/worktree-new feature-branch
+    claude --worktree feature-branch
 
-This script:
+This:
 
-- Creates a git worktree at ``../platform-django--feature-branch``
-- Auto-generates ``.env.local`` with unique ``DOCKER_HOST_DJANGO_PORT`` and ``VITE_PLATFORM_DJANGO_PORT``
-- Copies configuration files (``.env``, ``.npmrc``)
-- Runs ``pnpm install``
+- Creates a git worktree at ``.claude/worktrees/feature-branch``
+- Seeds ``.env`` from the parent checkout, then claims a fresh database name,
+  Redis index, ``DJANGO_PORT`` and ``VITE_PORT``
+- Installs Python and frontend dependencies
+
+One Postgres and one Redis serve every worktree on the machine, so nothing new is
+started per worktree — only the two application processes need a port.
 
 **Starting development in a worktree**::
 
-    just up           # Start Docker stack (uses worktree-specific ports)
-    pnpm dev          # Start Vite (uses worktree-specific port)
+    just up           # Start the shared services, create this worktree's database
+    just serve        # Run Django on this worktree's port
+    pnpm dev          # Start Vite on this worktree's port
 
-**Checking your ports**::
+**Checking what this worktree got**::
 
     just ports
-    # Output: Django: 8010, Vite: 5183
 
-**Removing a worktree**::
+**Removing a worktree**
 
-    . bin/worktree-remove
+Exit the session and choose to remove it. Nothing else needs releasing: ``.env``
+was the only record of what the worktree held.
 
 Understanding Serial vs. Parallel Work
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -257,14 +260,16 @@ Quick Reference
      - Command
    * - Start planning session
      - ``claude --plan``
-   * - Create worktree (with port allocation)
-     - ``. bin/worktree-new branch-name``
+   * - Create worktree
+     - ``claude --worktree branch-name``
    * - Remove worktree
-     - ``. bin/worktree-remove``
-   * - Check assigned ports
+     - Exit the session and choose to remove
+   * - Check this worktree's allocation
      - ``just ports``
-   * - Start Docker stack
+   * - Start the shared backing services
      - ``just up``
+   * - Start Django
+     - ``just serve``
    * - Start Vite dev server
      - ``pnpm dev``
    * - Create GitHub issue
