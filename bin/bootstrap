@@ -76,8 +76,11 @@ info "Installing Python dependencies..."
 # download URL directly rather than asking the API.
 if ! command -v uv &>/dev/null; then
   info "Installing uv..."
-  UV_INSTALL_DIR="$(dirname "$MISE")" curl -fsSL https://astral.sh/uv/install.sh | sh
-  export PATH="$(dirname "$MISE"):$PATH"
+  curl -fsSL https://astral.sh/uv/install.sh | sh
+  # Astral's installer targets $HOME/.local/bin. mise may be somewhere else
+  # entirely — MISE_INSTALL_PATH is how a cloud setup script relocates it — so
+  # add uv's own directory rather than assuming the two coincide.
+  export PATH="$HOME/.local/bin:$PATH"
 fi
 success "uv $(uv --version | cut -d' ' -f2)"
 
