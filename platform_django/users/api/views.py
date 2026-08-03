@@ -25,6 +25,9 @@ class UserViewSet(RetrieveModelMixin, ListModelMixin, UpdateModelMixin, GenericV
     def perform_update(self, serializer):
         # validated_data carries exactly the writable serializer fields this
         # request supplied, which are the profile fields the service accepts.
+        # That the two agree is asserted in tests/api/test_serializers.py —
+        # this serializer is a ModelSerializer, so its field list answers to
+        # the model, not to the service signature.
         serializer.instance = user_update_profile(
             user_id=serializer.instance.pk,
             **serializer.validated_data,
