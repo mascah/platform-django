@@ -14,8 +14,14 @@ import { useTheme } from '@/components/theme-provider';
 import { useAuth } from '@/features/auth';
 
 // Project identity is data: the template is never renamed, so the name a user
-// reads comes from the environment rather than from this file.
-const projectDisplayName = import.meta.env.PROJECT_DISPLAY_NAME ?? 'App';
+// reads comes from the environment rather than from this file. The fallback
+// matches project_display_name() in config/env.py, so a clone that set only the
+// slug reads the same here as it does server-side.
+const projectDisplayName =
+  import.meta.env.PROJECT_DISPLAY_NAME ||
+  (import.meta.env.PROJECT_SLUG || 'app')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (character: string) => character.toUpperCase());
 
 export function AppLayout() {
   const { user, logout } = useAuth();

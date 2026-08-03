@@ -49,7 +49,7 @@ fi
 
 # Worktrees are created beside each other under the main checkout, whether the
 # request came from there or from another worktree.
-MAIN=$(git -C "${PARENT:-$PWD}" worktree list --porcelain | sed -n '1s/^worktree //p')
+MAIN=$(git -C "${PARENT:-$PWD}" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
 if [[ -z "$MAIN" ]]; then
   log "Error: ${PARENT:-$PWD} is not a git checkout"
   exit 1
@@ -88,6 +88,13 @@ for file in ".env" ".npmrc"; do
 done
 
 "$WORKTREE_DIR/bin/env-refresh" --reallocate >&2
+
+# A worktree is a path mise has never seen, and mise silently ignores an
+# untrusted config — which would leave every command in here reading the main
+# checkout's environment instead of this one's.
+if command -v mise >/dev/null; then
+  mise trust --quiet "$WORKTREE_DIR/mise.toml" || true
+fi
 
 # ---------------------------------------------------------------------------
 # Install dependencies, without blocking

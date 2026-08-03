@@ -6,6 +6,7 @@ page and in the API schema — because a value nothing consumes is not identity.
 
 from pathlib import Path
 
+import pytest
 from django.template import Context
 from django.template import RequestContext
 from django.template import Template
@@ -13,11 +14,10 @@ from django.test import RequestFactory
 from django.test import override_settings
 
 DISPLAY_NAME = "ACME Rocket Sled"
-BASE_TEMPLATE = (
-    Path(__file__).resolve().parent.parent
-    / "platform_django"
-    / "templates"
-    / "base.html"
+TEMPLATES = Path(__file__).resolve().parent.parent / "platform_django" / "templates"
+TITLED_TEMPLATES = (
+    TEMPLATES / "base.html",
+    TEMPLATES / "apps" / "platform_django.html",
 )
 
 
@@ -30,9 +30,10 @@ def test_display_name_is_available_to_every_template():
     assert rendered == DISPLAY_NAME
 
 
-def test_base_template_titles_itself_from_the_display_name():
-    """The template must read the variable rather than a hardcoded name."""
-    source = BASE_TEMPLATE.read_text()
+@pytest.mark.parametrize("template", TITLED_TEMPLATES, ids=lambda path: path.name)
+def test_templates_title_themselves_from_the_display_name(template: Path):
+    """Templates must read the variable rather than a hardcoded name."""
+    source = template.read_text()
 
     assert "{{ project_display_name }}" in source
     assert "Platform Django" not in source

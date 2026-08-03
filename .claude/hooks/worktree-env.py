@@ -18,7 +18,10 @@ import json
 import shutil
 import sys
 
-PREFIX = 'eval "$(mise env -s bash)" 2>/dev/null\n'
+# The redirect belongs inside the substitution: bash expands before it applies
+# redirections, so putting it on the eval would leak mise's stderr into the
+# output of every command instead of suppressing it.
+PREFIX = 'eval "$(mise env -s bash 2>/dev/null)"\n'
 
 
 command = json.load(sys.stdin).get("tool_input", {}).get("command", "")

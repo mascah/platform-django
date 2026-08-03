@@ -41,7 +41,9 @@ def update_site_forward(apps, schema_editor):
         Site,
         schema_editor.connection,
         "example.com",
-        "Platform Django",
+        # allauth renders this into email subjects and templates, so it is a
+        # name a user reads — the project's, not the template's.
+        settings.PROJECT_DISPLAY_NAME,
     )
 
 
