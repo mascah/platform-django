@@ -86,3 +86,11 @@ A project created out of the template, viewed from the template. Its code stays
 byte-identical to the upstream template so that changes can be merged in either
 direction.
 _Avoid_: fork, child, instance
+
+**Template-owned module**:
+A module the template ships and continues to evolve. A downstream project
+inherits from it and extends it, and expects to receive changes to it.
+
+**Project-owned module**:
+A module a downstream project adds, which the template knows nothing about. It
+is where anything specific to one project belongs.

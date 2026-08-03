@@ -34,6 +34,18 @@ conflicts there are the cheap kind, but they are the files to keep tidy: a
 project that reorders or restructures them is choosing to make every future
 merge harder, and gains nothing for it.
 
+Anything specific to one project belongs in a project-owned module rather than
+inside a template-owned one. This is guidance, not a mechanism — nothing
+prevents a project from editing a template-owned module, and sometimes it is the
+right call. The cost when both sides then change the same file is one ordinary
+conflict in one file, which is the point: the cost is proportional to what
+actually diverged, rather than charged up front against every file.
+
+Finding project-specific code accumulating in a template-owned module is usually
+a signal rather than a problem. Either the change is generally useful, in which
+case it should go upstream and come back to every project, or it is specific, in
+which case it wants a module of its own.
+
 The accepted cost is cosmetic: a project's internal package name is the
 template's, which reads oddly in imports and appears in static asset paths. It
 is invisible to users of the application and cannot collide, since projects
