@@ -7,12 +7,17 @@ from pathlib import Path
 import environ
 from csp.constants import NONCE
 
+from config.env import database_url
+from config.env import redis_url
+
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # platform_django/
 APPS_DIR = BASE_DIR / "platform_django"
 env = environ.Env()
 
-READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=False)
+# Default on: gating this behind a variable that lives in .env itself meant a
+# clean clone could only boot from a hooked shell. Real env vars still win.
+READ_DOT_ENV_FILE = env.bool("DJANGO_READ_DOT_ENV_FILE", default=True)
 if READ_DOT_ENV_FILE:
     # OS environment variables take precedence over variables from .env
     env.read_env(str(BASE_DIR / ".env"))
@@ -47,7 +52,7 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # DATABASES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
-DATABASES = {"default": env.db("DATABASE_URL")}
+DATABASES = {"default": env.db_url_config(database_url(env.ENVIRON))}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -275,7 +280,7 @@ LOGGING = {
     "root": {"level": "INFO", "handlers": ["console"]},
 }
 
-REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
+REDIS_URL = redis_url(env.ENVIRON)
 REDIS_SSL = REDIS_URL.startswith("rediss://")
 
 # Celery
