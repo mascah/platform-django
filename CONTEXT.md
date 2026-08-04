@@ -67,6 +67,13 @@ paying for.
 **Tier 2 / Production**:
 The shape a project takes once it must be continuously available.
 
+**Preview**:
+A disposable deployment of one branch, created so a change can be exercised
+against a real database and a real browser before it merges. It runs at a Tier
+like any other deployment; what makes it a Preview is that it is expected to be
+destroyed, and that nothing depends on its data surviving.
+_Avoid_: staging, review app, preview environment, ephemeral environment
+
 ### Copying the template
 
 **Project slug**:

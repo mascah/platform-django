@@ -109,6 +109,10 @@ on a schedule instead.
    If a project needs a worker, put it on Basic dynos ($7 each) rather than
    scaling a worker on Eco.
 
+   :doc:`Previews <previews>` draw on this same pool. They are web-only, so
+   they sleep, but they are a second consumer of it and their number grows with
+   open pull requests.
+
 .. warning::
 
    **Do not move sessions into the cache.**
