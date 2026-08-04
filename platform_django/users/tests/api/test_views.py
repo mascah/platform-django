@@ -58,6 +58,22 @@ class TestUserViewSetReads:
             "id": user.id,
         }
 
+    def test_me_serializes_a_user_whose_username_contains_a_dot(self):
+        """The "url" field reverses the detail route, so the route has to match.
+
+        createsuperuser takes whatever the username validator accepts, an email
+        address included. When the router could not build a URL for it, this
+        endpoint raised ImproperlyConfigured and the SPA had no session.
+        """
+        dotted: User = UserFactory(username="ada@example.com")  # type: ignore[assignment]
+        client = APIClient()
+        client.force_authenticate(user=dotted)
+
+        response = client.get(reverse("api:user-me"))
+
+        assert response.status_code == HTTPStatus.OK
+        assert response.data["url"] == "http://testserver/api/users/ada@example.com/"
+
 
 class TestUserViewSetWrites:
     def test_identity_fields_are_not_writable(self, user: User, api_client: APIClient):
