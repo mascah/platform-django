@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 
-const envDir = path.resolve(__dirname, '../..');
+const envDir = path.resolve(import.meta.dirname, '../..');
 const envPrefix = ['VITE_', 'PROJECT_'];
 
 // A worktree's ports live in the repo-root .env, and both sides of the dev
@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => ({
   envPrefix,
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
   server: {
