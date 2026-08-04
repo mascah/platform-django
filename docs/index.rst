@@ -54,6 +54,7 @@ and adopt more structure as complexity warrants it.
    :caption: Deployment
 
    7-deployment/tiers
+   7-deployment/previews
 
 .. toctree::
    :maxdepth: 2

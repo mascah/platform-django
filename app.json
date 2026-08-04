@@ -66,5 +66,12 @@
       "quantity": 1,
       "size": "eco"
     }
+  },
+  "environments": {
+    "review": {
+      "scripts": {
+        "postdeploy": "python manage.py create_e2e_user"
+      }
+    }
   }
 }

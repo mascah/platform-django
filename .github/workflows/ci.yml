@@ -1,12 +1,16 @@
 name: CI
 
+# The workflow runs on every commit, with no paths-ignore. That is deliberate
+# and load-bearing: a Preview created with "wait for CI to pass" waits on a
+# status that a skipped workflow never reports, so a docs-only pull request
+# would hang forever. Nothing is gained by filtering here anyway — the `changes`
+# job below already skips every expensive job on a docs-only change.
+# See docs/adr/0011-previews-are-heroku-review-apps.md.
 on:
   push:
     branches: ['main']
-    paths-ignore: ['docs/**']
   pull_request:
     branches: ['main']
-    paths-ignore: ['docs/**']
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
