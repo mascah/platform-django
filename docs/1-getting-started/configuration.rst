@@ -152,7 +152,7 @@ Local development uses ``config.settings.local`` by default. Key differences fro
 - ``DEBUG = True``
 - Console email backend
 - Relaxed security settings
-- Verbose logging
+- Logs rendered for a human to read
 
 Production
 ^^^^^^^^^^
@@ -163,6 +163,40 @@ Production uses ``config.settings.production``. Key settings:
 - HTTPS enforcement (``SECURE_SSL_REDIRECT``)
 - Secure cookies (``SESSION_COOKIE_SECURE``, ``CSRF_COOKIE_SECURE``)
 - HSTS headers
+- Logs rendered as one JSON object per event
+
+Logging
+^^^^^^^
+
+Logging is structured, via `django-structlog
+<https://django-structlog.readthedocs.io/>`_. Every log line carries a
+``request_id`` bound by ``RequestMiddleware``, so the lines belonging to one
+request can be pulled out of a stream of interleaved ones --- including lines
+emitted by a Celery task that request enqueued, since the id travels on the task
+message.
+
+``base.py`` holds the whole ``LOGGING`` dictionary. Production changes two
+things about it and states them as edits rather than restating the dictionary,
+so a formatter added upstream cannot go missing in production.
+
+Log from anywhere with::
+
+    import structlog
+
+    logger = structlog.get_logger(__name__)
+    logger.info("subscription_renewed", plan=plan.slug, months=12)
+
+Pass values as keyword arguments rather than formatting them into the message.
+They become fields in the JSON, which is what makes them searchable; the event
+name stays a stable string worth grouping on.
+
+Packages that know nothing about structlog need no adapting --- ``ProcessorFormatter``
+runs the same processor chain over ordinary stdlib records, so a third-party
+warning comes out in the same shape as everything else.
+
+To redact, sample or enrich, append a processor to ``STRUCTLOG_SHARED_PROCESSORS``
+in ``base.py``. Doing it there rather than at the call sites means a value cannot
+reach a handler by way of a call site that forgot.
 
 Every value a deployment needs to differ on is read from the environment, so a
 project changes it by setting a variable rather than by editing a tracked file.

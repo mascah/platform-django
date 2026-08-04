@@ -46,6 +46,16 @@ ignore_errors = true
 [tool.django-stubs]
 django_settings_module = "config.settings.test"
 
+# ==== django-migration-linter ====
+# The default rule set already treats backward-incompatible operations — DROP or
+# RENAME of a column or table, ADD NOT NULL without a default, ALTER of a column
+# type — as errors, and data-migration hygiene as non-blocking warnings. That is
+# the split we want, so no `--warnings-as-errors`.
+[tool.django_migration_linter]
+# `sites` migrations live under platform_django/contrib/sites via
+# MIGRATION_MODULES; the linter cannot resolve that shimmed path.
+exclude_apps = ["sites"]
+
 # ==== djLint ====
 [tool.djlint]
 blank_line_after_tag = "load,extends"
@@ -203,9 +213,15 @@ dependencies = [
     "django-crispy-forms==2.7",
     "django-environ==0.14.0",
     "django-filter==26.1",
+    "django-linear-migrations==2.19.0",
+    "django-migration-linter==6.0.0",
     "django-model-utils==5.0.0",
     "django-redis==7.0.0",
     "django-storages[s3]==1.14.6",
+    # [celery] pulls in the worker bootstep and the task-message signals.
+    # structlog itself is not pinned separately: this declares `structlog>=21.4.0`
+    # and uv.lock pins whatever that resolves to.
+    "django-structlog[celery]==10.1.0",
     "django-tailwind-cli==4.6.2",
     "django-vite==3.1.0",
     "django==5.2.16",

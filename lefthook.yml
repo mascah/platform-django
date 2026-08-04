@@ -142,6 +142,23 @@ pre-commit:
         - '**/migrations/**'
       run: uv run mypy . --config-file=pyproject.toml
 
+    # === Migrations ===
+    # Flag a backward-incompatible migration before it is pushed. `lintmigrations`
+    # runs `sqlmigrate`, so it needs a live database — skip rather than fail when
+    # Postgres is down, since CI is the authority and `--no-verify` is blocked.
+    #
+    # --project-root-path . is required: the linter's `git diff --relative` runs
+    # from the settings directory, so without it the diff is scoped to
+    # config/settings/ and silently finds zero migrations.
+    lintmigrations:
+      glob: '**/migrations/*.py'
+      run: |
+        if uv run python -c "import django, os; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.local'); django.setup(); from django.db import connection; connection.ensure_connection()" >/dev/null 2>&1; then
+          uv run python manage.py lintmigrations --git-commit-id origin/main --project-root-path .
+        else
+          echo "lintmigrations skipped: database unreachable (run 'just up'). CI enforces this check."
+        fi
+
     # === Documentation build check ===
     docs-build:
       glob: 'docs/**/*'

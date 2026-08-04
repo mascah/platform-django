@@ -225,6 +225,10 @@ jobs:
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
+        with:
+          # Full history, so `lintmigrations --git-commit-id origin/main` has a
+          # main to diff against and can tell which migrations this branch added.
+          fetch-depth: 0
 
       - name: Setup Python environment
         uses: ./.github/actions/setup-python-env
@@ -237,6 +241,14 @@ jobs:
 
       - name: Check DB Migrations
         run: uv run python manage.py makemigrations --check
+
+      # Migrations are applied before the new code is serving, so an old process
+      # briefly runs against the new schema. Anything that breaks it in that
+      # window — DROP or RENAME of a column or table, ADD NOT NULL without a
+      # default, ALTER of a column type — fails here. Only migrations this branch
+      # added are checked, so an existing backlog is never re-flagged.
+      - name: Lint DB Migrations
+        run: uv run python manage.py lintmigrations --git-commit-id origin/main --project-root-path .
 
       - name: Run DB Migrations
         run: uv run python manage.py migrate
