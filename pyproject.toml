@@ -179,7 +179,7 @@ dev = [
     "myst-parser>=5.1.0",
     "ruff==0.16.1",
     "coverage==7.15.2",
-    "djlint==1.43.1",
+    "djlint==1.43.2",
     "factory-boy==3.3.3",
     "django-debug-toolbar==6.3.0",
     "django-extensions==4.1",
