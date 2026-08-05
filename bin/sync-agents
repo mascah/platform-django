@@ -48,13 +48,18 @@ done
 # -----------------------------------------------------------------------------
 # AGENTS.md, alongside every CLAUDE.md
 # -----------------------------------------------------------------------------
+# git rather than find, because the interesting files are exactly the ones git
+# tracks and the uninteresting ones are exactly what .gitignore already names.
+# `find -not -path` filters output without pruning the walk, so it still
+# descended every node_modules, every .venv and every worktree — around three
+# seconds in a clean checkout and thirty once a few worktrees existed. There is
+# also no exclusion list to keep up to date, which is how .venv came to be
+# walked in the first place.
+#
+# --others --exclude-standard keeps a CLAUDE.md that has not been staged yet:
+# writing one and running this script is the normal order.
 while IFS= read -r -d '' claude_md; do
     link CLAUDE.md "${claude_md%CLAUDE.md}AGENTS.md"
-done < <(
-    find . -name CLAUDE.md \
-        -not -path './node_modules/*' \
-        -not -path './.claude/worktrees/*' \
-        -print0
-)
+done < <(git ls-files -z --cached --others --exclude-standard '*CLAUDE.md')
 
 echo "Agent mirrors synced."
