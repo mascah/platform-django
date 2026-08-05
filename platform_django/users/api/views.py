@@ -17,6 +17,14 @@ class UserViewSet(RetrieveModelMixin, ListModelMixin, UpdateModelMixin, GenericV
 
     serializer_class = UserSerializer
     lookup_field = "username"
+    # The router's default value regex is "[^/.]+", which excludes the dot that
+    # Django's own UnicodeUsernameValidator allows. A username like
+    # "ada@example.com" - what createsuperuser gets when an email is typed at
+    # the username prompt - then has no reversible detail URL, and the "url"
+    # field in UserSerializer raises ImproperlyConfigured on every response
+    # that serializes that user, /api/users/me/ included. Anything the
+    # validator accepts has to be routable; only "/" is off limits.
+    lookup_value_regex = "[^/]+"
 
     def get_queryset(self):
         assert isinstance(self.request.user.id, int)
