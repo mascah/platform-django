@@ -58,8 +58,13 @@ fi
 # -----------------------------------------------------------------------------
 # 3. Shell integration
 # -----------------------------------------------------------------------------
-# Purely a convenience: it puts the pinned toolchain on PATH so commands work
-# without a `mise exec` prefix. Nothing is correct only because of this hook.
+# Two shells to cover, and they read different files. A terminal gets `mise
+# activate`, which swaps the toolchain per directory from a prompt hook. An
+# agent harness runs its commands in a login shell that is not interactive: it
+# reads the profile, never the rc file, and no prompt hook ever fires. That
+# shell gets shims, which resolve without a hook and so work in exactly the
+# case activation misses — otherwise an agent runs the machine's own node and
+# lefthook rather than the versions this repo pins.
 info "Checking shell integration..."
 
 case "${SHELL:-}" in
@@ -77,6 +82,27 @@ else
   } >> "$SHELL_RC"
   success "mise activation added to $SHELL_RC"
   warn "Restart your terminal, or run: source $SHELL_RC"
+fi
+
+# Appending to a .bash_profile that does not exist would stop bash reading
+# .profile at all, so prefer whichever the machine already has.
+case "$SHELL_NAME" in
+  bash)
+    SHELL_PROFILE="$HOME/.bash_profile"
+    [ -f "$SHELL_PROFILE" ] || SHELL_PROFILE="$HOME/.profile"
+    ;;
+  *) SHELL_PROFILE="$HOME/.zprofile" ;;
+esac
+
+if grep -q 'mise activate' "$SHELL_PROFILE" 2>/dev/null; then
+  success "mise shims already on PATH in $SHELL_PROFILE"
+else
+  {
+    echo ""
+    echo "# Added by platform-django/bin/setup"
+    echo "eval \"\$($MISE activate $SHELL_NAME --shims)\""
+  } >> "$SHELL_PROFILE"
+  success "mise shims added to $SHELL_PROFILE"
 fi
 
 # -----------------------------------------------------------------------------
