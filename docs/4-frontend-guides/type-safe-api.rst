@@ -131,6 +131,10 @@ Each React app has an ``openapi-ts.config.ts`` configuration file:
       ],
     });
 
+The ``input`` here only applies when the generator is run with no ``-i``.
+``just openapi`` passes one, pointing at a schema ``manage.py spectacular``
+dumped, so no server runs and this worktree's Django port does not matter.
+
 **Key configuration options:**
 
 - ``input``: URL to your Django OpenAPI schema endpoint
@@ -206,33 +210,64 @@ Configure React Query in your app root:
 Client Configuration
 ^^^^^^^^^^^^^^^^^^^^
 
-Configure the API client with your backend URL and CSRF handling:
+``src/services/client-config.ts`` configures the generated client, and
+``main.tsx`` imports it for its side effect. Imports are evaluated before the
+render call, and no query fires until something renders, so the client is
+configured before the first request.
 
 .. code-block:: typescript
 
-    // src/lib/api-client.ts
-    import { client } from '@/services/platform_django/client.gen';
+    // src/services/client-config.ts
+    import { client } from './platform_django/client.gen';
 
-    // Set base URL based on environment
-    const apiBaseUrl = import.meta.env.PROD
-      ? window.location.origin
-      : 'http://localhost:8000';
+    const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE']);
 
-    client.setConfig({ baseUrl: apiBaseUrl });
-
-    // Add CSRF token to mutating requests
     client.interceptors.request.use((request) => {
-      if (request.method !== 'GET') {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')
-          ?.getAttribute('content');
-        if (csrfToken) {
-          request.headers.set('X-CSRFToken', csrfToken);
-        }
+      if (SAFE_METHODS.has(request.method.toUpperCase())) {
+        return request;
+      }
+      const token = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute('content');
+      if (token) {
+        request.headers.set('X-CSRFToken', token);
       }
       return request;
     });
 
-Import this file early in your app initialization to ensure the client is configured before any API calls.
+No base URL
+"""""""""""
+
+The client is deliberately left with no ``baseUrl``, so it resolves a relative
+path against the page's origin. Django serves the bundle in both environments —
+in development django-vite only points the script tags at the Vite server, so
+the page origin is Django's either way.
+
+Naming the origin explicitly is a regression rather than a safeguard. It pins a
+host the page was not necessarily loaded on: browse a worktree on ``127.0.0.1``
+while the client says ``localhost`` and every request becomes cross-origin,
+carrying no session cookie and failing the ``connect-src 'self'`` policy in
+``config/settings/local.py``.
+
+Where the CSRF token comes from
+"""""""""""""""""""""""""""""""
+
+``config/settings/base.py`` sets ``CSRF_COOKIE_HTTPONLY = True``, so JavaScript
+cannot read the ``csrftoken`` cookie. The token reaches the bundle through a
+meta tag that the SPA shell renders instead:
+
+.. code-block:: html
+
+    {# platform_django/templates/apps/platform_django.html #}
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+
+Rendering the variable sets the cookie exactly as ``{% csrf_token %}`` does.
+The tag form is what differs: ``{% csrf_token %}`` emits a hidden input, which
+is not valid in a ``head`` and gets hoisted into the body by the parser.
+
+Without the header, DRF's ``SessionAuthentication`` rejects every unsafe request
+from a signed-in user. An anonymous request passes without it, so a broken
+setup here surfaces only after someone signs in.
 
 Query Hooks
 -----------

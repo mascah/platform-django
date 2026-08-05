@@ -30,7 +30,7 @@ Add a Django URL, view or template only when the catch-all genuinely cannot
 serve the requirement. Keep the existing auth, context processors and template
 runtime configuration unless the task explicitly changes them.
 
-The template shell carries, in order: `{% csrf_token %}` for mutating API
+The template shell carries, in order: a `csrf-token` meta tag for mutating API
 requests, `{% vite_hmr_client %}`, `{% vite_react_refresh_csp %}` and
 `{% vite_asset 'main.tsx' %}`, then the `#root` mount point. Use the
 CSP-aware refresh tag, not a bare `vite_react_refresh` — `vite_csp.py` exists

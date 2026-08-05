@@ -55,6 +55,10 @@ DEBUG_TOOLBAR_CONFIG = {
         "debug_toolbar.panels.profiling.ProfilingPanel",
     ],
     "SHOW_TEMPLATE_CONTEXT": True,
+    # https://django-debug-toolbar.readthedocs.io/en/latest/configuration.html#show-toolbar-callback
+    # Keeps the toolbar off the browser suite — see the module for why that is
+    # a correctness matter rather than tidiness.
+    "SHOW_TOOLBAR_CALLBACK": "platform_django.core.toolbar.show_toolbar",
 }
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#internal-ips
 # Django runs as a host process, so the request always arrives from loopback.
