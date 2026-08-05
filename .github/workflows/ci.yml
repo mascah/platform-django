@@ -16,6 +16,18 @@ concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# Every job runs on `ubuntu-24.04-arm`. Private-repo Actions minutes are billed
+# per job, rounded up to the whole minute, and an arm64 runner is billed at a
+# lower per-minute rate than the x64 one — so the same work on the same number
+# of jobs costs meaningfully less. Nothing here is architecture-specific: the
+# Postgres, Redis and Ubuntu images are multi-arch, Playwright ships an arm64
+# chromium shell, and the lefthook install step below already picks its binary
+# from `uname -m`.
+#
+# Because billing rounds up per job, a job's *count* matters more than its
+# duration once it is under a minute. Adding a step to an existing short job is
+# free; adding a job is never free, however little it does.
+
 jobs:
   # ---------------------------------------------------------------------------
   # Detect which areas of the codebase changed so downstream jobs can be skipped.
@@ -93,7 +105,7 @@ jobs:
     if: >-
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -135,7 +147,7 @@ jobs:
   # toolchain: the script is bash, find and ln.
   # ---------------------------------------------------------------------------
   agent-mirrors:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -171,7 +183,7 @@ jobs:
     if: >-
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -206,7 +218,7 @@ jobs:
   pytest:
     needs: changes
     if: needs.changes.outputs.python == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: write
       pull-requests: write
@@ -220,17 +232,17 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 15
       redis:
         image: redis:7.2
         ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 15
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -275,7 +287,7 @@ jobs:
   bootstrap:
     needs: changes
     if: needs.changes.outputs.bootstrap == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -307,7 +319,7 @@ jobs:
   vitest:
     needs: changes
     if: needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -328,7 +340,7 @@ jobs:
     if: >-
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     # Vite bakes VITE_ variables from the environment into the bundle, and the
     # Sentry spec reads the same one back to know which host to watch for. Set
     # on the job so the build and the run cannot disagree — a DSN in only one
@@ -349,17 +361,17 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 15
       redis:
         image: redis:7.2
         ports: ['6379:6379']
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 10s
+          --health-interval 2s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 15
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -424,8 +436,8 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-success:
     if: always()
-    needs: [changes, lint, pytest, vitest, e2e, bootstrap, openapi-client]
-    runs-on: ubuntu-latest
+    needs: [changes, lint, pytest, vitest, e2e, bootstrap, openapi-client, agent-mirrors]
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Check results
         run: |
@@ -435,6 +447,7 @@ jobs:
             "${{ needs.vitest.result }}"
             "${{ needs.e2e.result }}"
             "${{ needs.bootstrap.result }}"
+            "${{ needs['agent-mirrors'].result }}"
             "${{ needs['openapi-client'].result }}"
           )
           for r in "${results[@]}"; do
