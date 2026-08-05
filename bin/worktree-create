@@ -64,6 +64,12 @@ BRANCH="worktree-$NAME"
 # ---------------------------------------------------------------------------
 # Create the git worktree
 # ---------------------------------------------------------------------------
+# Finished worktrees hold Redis indices, of which there are sixteen, and a
+# session that ends without the keep-or-remove prompt never gives one back.
+# Here is the only moment a free index is needed, so it is the only moment
+# worth looking for one.
+"$MAIN/bin/worktree-reap" --yes >&2 || true
+
 mkdir -p "$MAIN/worktrees"
 
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH"; then
@@ -90,7 +96,16 @@ for file in ".env" ".npmrc"; do
   fi
 done
 
-"$WORKTREE_DIR/bin/env-refresh" --reallocate >&2
+# The .env copied above is the main checkout's, database and Redis index and
+# ports included. Leaving it behind on a failed allocation leaves a worktree
+# that looks ready and quietly writes to main's database, so it does not get
+# left behind.
+if ! "$WORKTREE_DIR/bin/env-refresh" --reallocate >&2; then
+  log "Allocation failed — removing the half-built worktree"
+  git -C "$MAIN" worktree remove --force "$WORKTREE_DIR" >&2 || true
+  git -C "$MAIN" branch -D "$BRANCH" >&2 || true
+  exit 1
+fi
 
 # A worktree is a path mise has never seen, and mise silently ignores an
 # untrusted config — which would leave every command in here reading the main
