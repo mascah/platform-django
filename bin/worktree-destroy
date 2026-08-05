@@ -76,9 +76,14 @@ drop_database() {
     return 0
   fi
 
+  # </dev/null because `docker compose exec` drains stdin whether or not the
+  # command it runs reads any. Called from a `while read` loop over a list of
+  # worktrees — which is what bin/worktree-reap is — it would swallow the rest
+  # of that list, and the loop would stop at the first worktree it dropped a
+  # database for, looking like it had finished.
   log "Dropping database: $db"
   if ! (cd "$MAIN_WORKTREE" && docker compose exec -T postgres \
-    dropdb -U "${user:-postgres}" --if-exists --force "$db") >&2; then
+    dropdb -U "${user:-postgres}" --if-exists --force "$db") >&2 </dev/null; then
     log "Warning: could not drop $db (are the backing services running?)"
   fi
 }
