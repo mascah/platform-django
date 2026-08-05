@@ -4,11 +4,15 @@
 # bin/bootstrap installs everything declared here, assuming no package manager.
 #
 # The runtime versions deliberately do NOT live in this file. Node's version is
-# in .nvmrc and Python's is in .python-version, and both stay authoritative:
-# the deployment platform reads those same two files to choose the runtimes it
-# builds with, so pinning versions here as well would let the two drift and
-# silently change what gets deployed. mise reads .nvmrc directly; uv reads
-# .python-version and provisions Python itself.
+# in .nvmrc and Python's is in .python-version, and both stay authoritative
+# locally and in CI: pinning versions here as well would let the two drift.
+# mise reads .nvmrc directly; uv reads .python-version and provisions Python
+# itself.
+#
+# Heroku reads .python-version but NOT .nvmrc — its Node buildpack only ever
+# looks at package.json's engines.node, which is why that field is pinned to
+# the same major (24.x) rather than left open. Bumping .nvmrc across a major
+# means bumping engines.node too, or the deploy silently builds the old one.
 #
 # pnpm is likewise absent — package.json's packageManager field pins it, and
 # corepack installs from there. So is uv: it ships only from GitHub releases,
