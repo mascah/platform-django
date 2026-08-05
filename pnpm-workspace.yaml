@@ -8,6 +8,11 @@ packages:
 # core-js' postinstall is a donation banner, esbuild ships its binary via
 # platform-specific optional deps.
 allowBuilds:
+  # @sentry/cli ships its binary via platform-specific optional deps, same as
+  # esbuild — its postinstall is only the fallback download, and its own error
+  # message says it copied the approach. Denying it costs a template that
+  # uploads no source maps nothing, and saves every clone the download.
+  '@sentry/cli': false
   core-js: false
   esbuild: false
 

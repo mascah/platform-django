@@ -329,6 +329,16 @@ jobs:
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
     runs-on: ubuntu-latest
+    # Vite bakes VITE_ variables from the environment into the bundle, and the
+    # Sentry spec reads the same one back to know which host to watch for. Set
+    # on the job so the build and the run cannot disagree — a DSN in only one
+    # of them is a test that skips or watches the wrong host, either way
+    # silently. Not a real DSN, and nothing leaves the runner: the spec
+    # fulfills the request itself. The environment is deliberately neither
+    # production nor a Preview, so the tag on the event is worth asserting.
+    env:
+      VITE_SENTRY_DSN: https://e2epublickey@o0.ingest.us.sentry.io/0
+      VITE_SENTRY_ENVIRONMENT: e2e
     services:
       postgres:
         image: postgres:18

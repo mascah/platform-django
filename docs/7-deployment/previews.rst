@@ -150,4 +150,8 @@ request timeout applies to them.
 
 Errors go to the dyno log and nowhere else, because ``SENTRY_DSN`` is unset. If
 you set one as a review app config var, set ``SENTRY_ENVIRONMENT`` alongside it
-or Preview errors will arrive in Sentry as production issues.
+or Preview errors will arrive in Sentry as production issues. Browser errors
+from the React application are a second, public DSN in a second Sentry project,
+``VITE_SENTRY_DSN``, with ``VITE_SENTRY_ENVIRONMENT`` as its own tag — it is
+read when the frontend is built, so a Preview picks it up from the pipeline's
+config vars like any other build-time value.
