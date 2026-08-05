@@ -89,6 +89,9 @@ Run the narrowest check that covers the change first, then widen.
   database. `just down` and `just prune` act on containers shared by every
   worktree and every project on the machine.
 - `just serve` and `pnpm dev` — Django and Vite, on this worktree's ports.
+- `just remote` — the SSH port forward that reaches this worktree's Django and
+  Vite from a browser on another machine. Nothing binds beyond loopback; the
+  forward is the supported way in.
 - `just manage <cmd>` — `manage.py` against this worktree's database.
 
 Nothing injects this worktree's environment into a shell command. `just`, Django
