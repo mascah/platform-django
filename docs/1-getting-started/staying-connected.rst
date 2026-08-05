@@ -1,13 +1,64 @@
-Staying Connected to the Template
-=================================
+Working With the Template
+=========================
 
 A project created from this template keeps a remote pointing back at it.
 Receiving an improvement is a merge, contributing one back is a cherry-pick, and
 neither involves a rename because nothing was renamed to begin with
 (:doc:`ADR-0006 </adr/0006-identity-as-data-no-rename>`).
 
-This guide is about what that costs in practice, and where to put a change so it
-costs as little as possible.
+This guide is about making a project, what staying connected costs in practice,
+and where to put a change so it costs as little as possible.
+
+Creating a project
+------------------
+
+A new project is a clone plus two values::
+
+    git clone https://github.com/mascah/platform-django.git acme-app
+    cd acme-app
+    bin/bootstrap
+
+``bin/bootstrap`` writes ``.env``, and ``PROJECT_SLUG`` arrives already set to
+the checkout's directory name --- so two projects on one machine have separate
+databases, cache keys and task queues without either being renamed. Set the
+display name beside it, quoted, since it is the one value here that usually
+contains a space::
+
+    PROJECT_SLUG=acme_app              # names resources: databases, queues, the deployed app
+    PROJECT_DISPLAY_NAME="Acme App"    # what a user reads: titles, landing page, emails
+
+The internal Python package stays ``platform_django`` in every project. That is
+the point, and it is invisible to users of the application.
+
+Then point the clone at its own repository, keeping the template as a second
+remote::
+
+    git remote rename origin template
+    gh repo create <owner>/acme-app --private --source=. --remote=origin --push
+
+Four more things carry the template's identity rather than the project's, and
+none of them is a rename --- they are values a human reads:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - File
+     - Change
+   * - ``README.md``
+     - The title, the tagline, and the "Making a Project From This Template"
+       section. Everything below that section is true of a project as written.
+   * - ``app.json``
+     - The manifest ``name``, and the ``PROJECT_SLUG`` /
+       ``PROJECT_DISPLAY_NAME`` values --- otherwise the project deploys under
+       the template's name.
+   * - ``CLAUDE.md``
+     - The line naming the issue repository, so agents file against the project.
+   * - ``docs/agents/issue-tracker.md``
+     - The same repository reference.
+
+Adding domain modules and frontend applications is unaffected: those are
+additions, named freely, and additions merge cleanly.
 
 The merge surface
 -----------------
@@ -206,8 +257,25 @@ When to stop
 ------------
 
 A project that has its own infrastructure, its own deployment story and nothing
-left it wants to receive runs ``bin/eject``. That renames what the template
-brought, drops the remote and deletes the script
-(:doc:`ADR-0007 </adr/0007-ejecting-from-the-template>`).
+left it wants to receive runs ``bin/eject``
+(:doc:`ADR-0007 </adr/0007-ejecting-from-the-template>`)::
 
-It is one-way. Until then the rename buys nothing and costs the ability to merge.
+    bin/eject acme_app                      # display name derived: "Acme App"
+    bin/eject acme_app "ACME Rocket Sled"   # or given explicitly
+
+It renames the package, the workspace application and every reference to them,
+drops the ``template`` remote, regenerates the lockfiles, and deletes itself.
+Links that point at the template's *own* repository are left alone and listed,
+because renaming a clone URL only produces one that resolves to nothing.
+
+``PROJECT_SLUG`` and ``PROJECT_DISPLAY_NAME`` stay --- they are ordinary
+configuration, not template scaffolding. Only their defaults move.
+
+This is the line worth holding before then. Renaming a *value* a human reads is
+free; renaming an *identifier* Python, pnpm or import-linter resolves is
+ejecting by hand, and costs the ability to merge without buying the exit.
+
+It is one-way. It refuses to run against a dirty tree so that ``git reset
+--hard`` is a real undo in the minute afterwards, but there is no route back
+once you have built on it. Do it when you have decided you will never merge with
+the template again; until then the rename buys nothing and costs the ability to.
