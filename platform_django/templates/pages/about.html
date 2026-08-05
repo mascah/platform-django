@@ -1,1 +1,18 @@
 {% extends "base.html" %}
+
+{% block title %}
+  About {{ project_display_name }}
+{% endblock title %}
+{% block content %}
+  <h1>About {{ project_display_name }}</h1>
+  <p>This page is rendered by Django from a template, and it is the worked example of one.</p>
+  <p>A new page fills in the content block. The shell and the stylesheet come from <code>base.html</code>.</p>
+  <section class="card">
+    <h2>Where the styling comes from</h2>
+    <p>One Tailwind and one set of design tokens, shared with the application and the landing page.</p>
+    <p>The stylesheet is built from <code>apps/platform_django/src/django.css</code>.</p>
+    <p>Its classes are thin over the tokens in <code>packages/ui/src/styles/globals.css</code>.</p>
+    <p>Changing a colour or a corner radius there moves every surface, this page included.</p>
+    <a class="btn btn-outline" href="{% url 'app' %}">Open the application</a>
+  </section>
+{% endblock content %}

@@ -1,11 +1,10 @@
-{% load static i18n %}
+{% load static i18n django_vite %}
 
 <!DOCTYPE html>
 {% get_current_language as LANGUAGE_CODE %}
 <html lang="{{ LANGUAGE_CODE }}">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="x-ua-compatible" content="ie=edge" />
     <title>
       {% block title %}
         {{ project_display_name }}
@@ -13,115 +12,47 @@
     </title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="This is the way." />
-    <meta name="author" content="Mike Ascah" />
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
     {% block css %}
-      <!-- Latest compiled and minified Bootstrap CSS -->
+      {# vite_asset_url and not vite_asset: for a CSS entry, that tag emits a #}
+      {# module script pointing at the stylesheet once dev mode is off, which #}
+      {# the browser refuses on MIME type. ADR-0012. #}
       <link rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css"
-            integrity="sha512-SbiR/eusphKoMVVXysTKG/7VseWii+Y3FdHrt0EpKgpToZeemhqHeZeLWLhJutz/2ut2Vw1uQEj2MbRF+TVBUA=="
-            crossorigin="anonymous"
-            referrerpolicy="no-referrer" />
-      <!-- Your stuff: Third-party CSS libraries go here -->
-      <!-- This file stores project-specific CSS -->
-      <link href="{% static 'css/project.css' %}" rel="stylesheet" />
+            href="{% vite_asset_url 'django.css' app='platform_django' %}" />
     {% endblock css %}
-    <!-- Le javascript
-      ================================================== -->
-    {# Placed at the top of the document so pages load faster with defer #}
-    {% block javascript %}
-      <!-- Bootstrap JS -->
-      <script defer
-              src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.min.js"
-              integrity="sha512-1/RvZTcCDEUjY/CypiMz+iqqtaoQfAITmNSJY17Myp4Ms5mdxPS5UV7iOfdZoxcGhzFbOm6sntTKJppjvuhg4g=="
-              crossorigin="anonymous"
-              referrerpolicy="no-referrer"></script>
-      <!-- Your stuff: Third-party javascript libraries go here -->
-      <!-- place project specific Javascript in this file -->
-      <script defer src="{% static 'js/project.js' %}"></script>
-    {% endblock javascript %}
   </head>
-  <body class="{% block bodyclass %}{% endblock bodyclass %}">
+  <body>
     {% block body %}
-      <div class="mb-1">
-        <nav class="navbar navbar-expand-md navbar-light bg-light">
-          <div class="container-fluid">
-            <button class="navbar-toggler navbar-toggler-right"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#navbarSupportedContent"
-                    aria-controls="navbarSupportedContent"
-                    aria-expanded="false"
-                    aria-label="Toggle navigation">
-              <span class="navbar-toggler-icon"></span>
-            </button>
-            <a class="navbar-brand" href="{% url 'home' %}">{{ project_display_name }}</a>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-              <ul class="navbar-nav mr-auto">
-                <li class="nav-item active">
-                  <a class="nav-link" href="{% url 'home' %}">Home <span class="visually-hidden">(current)</span></a>
-                </li>
-                <li class="nav-item">
-                  <a class="nav-link" href="{% url 'about' %}">About</a>
-                </li>
-                {% if request.user.is_authenticated %}
-                  <li class="nav-item">
-                    <a class="nav-link"
-                       href="{% url 'users:detail' request.user.username %}">{% translate "My Profile" %}</a>
-                  </li>
-                  <li class="nav-item">
-                    {# URL provided by django-allauth/account/urls.py #}
-                    <a class="nav-link" href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
-                  </li>
-                {% else %}
-                  {% if ACCOUNT_ALLOW_REGISTRATION %}
-                    <li class="nav-item">
-                      {# URL provided by django-allauth/account/urls.py #}
-                      <a id="sign-up-link" class="nav-link" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
-                    </li>
-                  {% endif %}
-                  <li class="nav-item">
-                    {# URL provided by django-allauth/account/urls.py #}
-                    <a id="log-in-link" class="nav-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
-                  </li>
+      {% block header %}
+        <header class="site-header">
+          <div class="site-header-inner">
+            <a class="brand" href="{% url 'home' %}">{{ project_display_name }}</a>
+            <nav class="site-nav">
+              {% if request.user.is_authenticated %}
+                <a href="{% url 'users:detail' request.user.username %}">{% translate "My Profile" %}</a>
+                {# URL provided by django-allauth/account/urls.py #}
+                <a href="{% url 'account_logout' %}">{% translate "Sign Out" %}</a>
+              {% else %}
+                {% if ACCOUNT_ALLOW_REGISTRATION %}
+                  <a id="sign-up-link" href="{% url 'account_signup' %}">{% translate "Sign Up" %}</a>
                 {% endif %}
-              </ul>
-            </div>
+                <a id="log-in-link" href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+              {% endif %}
+            </nav>
           </div>
-        </nav>
-      </div>
-      <div class="container">
-        {% if messages %}
-          {% for message in messages %}
-            <div class="alert alert-dismissible {% if message.tags %}alert-{{ message.tags }}{% endif %}">
-              {{ message }}
-              <button type="button"
-                      class="btn-close"
-                      data-bs-dismiss="alert"
-                      aria-label="Close"></button>
-            </div>
-          {% endfor %}
-        {% endif %}
+        </header>
+      {% endblock header %}
+      {# The container is a block so a layout can narrow it without taking #}
+      {# over the messages, which every page gets and none should repeat. #}
+      <main class="{% block page_class %}page{% endblock page_class %}">
+        {% for message in messages %}
+          <div class="alert {% if 'error' in message.tags %}alert-error{% endif %}">{{ message }}</div>
+        {% endfor %}
         {% block main %}
           {% block content %}
-            <p>Use this document as a way to quick start any new project.</p>
           {% endblock content %}
         {% endblock main %}
-      </div>
+      </main>
     {% endblock body %}
-    <!-- /container -->
-    {% block modal %}
-    {% endblock modal %}
-    {% block inline_javascript %}
-      {% comment %}
-    Script tags with only code, no src (defer by default). To run
-    with a "defer" so that you run inline code:
-    <script>
-      window.addEventListener('DOMContentLoaded', () => {
-        /* Run whatever you want */
-      });
-    </script>
-      {% endcomment %}
-    {% endblock inline_javascript %}
   </body>
 </html>

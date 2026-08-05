@@ -21,6 +21,8 @@ For admin dashboards, forms, settings pages, and rapid prototyping, Django templ
 
 **Best for**: Admin interfaces, settings pages, forms, server-rendered content, rapid prototyping.
 
+Their CSS is not separate. ``apps/platform_django/src/django.css`` is a CSS-only entry in the application's Vite build, so a server-rendered page reads the same Tailwind and the same design tokens as the SPA and the landing page, and ``base.html`` links the built file with ``{% vite_asset_url %}``. A page is therefore unstyled until the frontend has built at least once; in exchange, Tailwind watches ``platform_django/templates`` and a class typed into a template needs no rebuild. See :doc:`ADR-0012 </adr/0012-server-rendered-pages-take-their-css-from-the-frontend-build>`.
+
 Tier 2: Vite-Based SPAs (Interactive)
 -------------------------------------
 
@@ -113,7 +115,7 @@ Choosing the Right Approach
 +---------------------------+----------------------+----------------------+----------------------+
 | Complex client state      | No                   | Yes                  | Limited              |
 +---------------------------+----------------------+----------------------+----------------------+
-| Build step required       | No                   | Yes                  | Yes                  |
+| Build step required       | Yes (CSS only)       | Yes                  | Yes                  |
 +---------------------------+----------------------+----------------------+----------------------+
 | Hot module replacement    | No                   | Yes                  | Yes                  |
 +---------------------------+----------------------+----------------------+----------------------+

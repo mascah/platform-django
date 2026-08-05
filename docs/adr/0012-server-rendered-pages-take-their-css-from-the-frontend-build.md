@@ -81,6 +81,12 @@ pages are the first thing anyone sees, so baking a design into
 `elements/button.html` is the obvious move, and it charges every downstream
 project a merge for a decision they were always going to overrule.
 
+**`django-tailwind-cli` goes with the decision**, and so does the one thing
+that used it: a `collectstatic` override whose only job was to run `tailwind
+build` before collecting. It had no input template and no configuration, so
+what it built on a deploy was a stylesheet nothing referenced. Vite emits into
+a `STATICFILES_DIRS` entry, so plain `collectstatic` is now enough.
+
 **Removing Bootstrap removes `cdnjs.cloudflare.com`** from `script-src`,
 `style-src` and `connect-src` in both `base.py` and `local.py`, and removes the
 last JavaScript from the server-rendered pages — so the navigation carries no

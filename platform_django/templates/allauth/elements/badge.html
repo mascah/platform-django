@@ -1,6 +1,9 @@
 {% load allauth %}
 
-<span class="badge {% if 'success' in attrs.tags %}bg-success{% endif %} {% if 'warning' in attrs.tags %}bg-warning{% endif %} {% if 'secondary' in attrs.tags %}bg-secondary{% endif %} {% if 'danger' in attrs.tags %}bg-danger{% endif %} {% if 'primary' in attrs.tags %}bg-primary{% endif %}">
+{# The tokens carry no success or warning colour, so a badge is either #}
+{# neutral or it is a warning worth the destructive colour. #}
+<span class="badge {% if 'warning' in attrs.tags or 'danger' in attrs.tags %}badge-warning{% endif %}"
+      {% if attrs.title %}title="{{ attrs.title }}"{% endif %}>
   {% slot %}
   {% endslot %}
 </span>
