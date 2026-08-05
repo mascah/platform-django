@@ -6,7 +6,10 @@ python_files = [
     "tests.py",
     "test_*.py",
 ]
-norecursedirs = ["node_modules"]
+# Setting this replaces pytest's defaults, so ".*" has to be restored by hand.
+# Without it, and without "worktrees", a run at the repository root collects every
+# worktree's copy of conftest.py and pluggy rejects the duplicate registration.
+norecursedirs = [".*", "node_modules", "worktrees", "build", "dist", "*.egg"]
 
 # ==== Coverage ====
 [tool.coverage.run]
