@@ -16,13 +16,22 @@ concurrency:
   group: ${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# Every job runs on `ubuntu-24.04-arm`. Private-repo Actions minutes are billed
+# Every job runs on `ubuntu-26.04-arm`. Private-repo Actions minutes are billed
 # per job, rounded up to the whole minute, and an arm64 runner is billed at a
 # lower per-minute rate than the x64 one — so the same work on the same number
 # of jobs costs meaningfully less. Nothing here is architecture-specific: the
 # Postgres, Redis and Ubuntu images are multi-arch, Playwright ships an arm64
 # chromium shell, and the lefthook install step below already picks its binary
 # from `uname -m`.
+#
+# The 26.04 images are a public preview: no SLA, and the label can change or be
+# withdrawn. They cost the same per minute as 24.04, so this buys currency
+# rather than money — pin back to `ubuntu-24.04-arm` if a run ever sits
+# unclaimed in the queue, which is how a withdrawn preview label presents.
+#
+# The `bootstrap` job below is unaffected. Its `ubuntu:24.04` container is the
+# bare machine under test, not the runner, and tracks what a developer or
+# deploy target actually runs.
 #
 # Because billing rounds up per job, a job's *count* matters more than its
 # duration once it is under a minute. Adding a step to an existing short job is
@@ -33,7 +42,7 @@ jobs:
   # Detect which areas of the codebase changed so downstream jobs can be skipped.
   # ---------------------------------------------------------------------------
   changes:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: read
       pull-requests: read
@@ -133,7 +142,7 @@ jobs:
     if: >-
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -200,7 +209,7 @@ jobs:
   pytest:
     needs: changes
     if: needs.changes.outputs.python == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       contents: write
       pull-requests: write
@@ -269,7 +278,7 @@ jobs:
   bootstrap:
     needs: changes
     if: needs.changes.outputs.bootstrap == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v7
@@ -308,7 +317,7 @@ jobs:
     if: >-
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     # Vite bakes VITE_ variables from the environment into the bundle, and the
     # Sentry spec reads the same one back to know which host to watch for. Set
     # on the job so the build and the run cannot disagree — a DSN in only one
@@ -405,7 +414,7 @@ jobs:
   ci-success:
     if: always()
     needs: [changes, lint, pytest, e2e, bootstrap]
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     steps:
       # `changes` is checked separately and strictly. It carries no `if`, so it
       # never legitimately skips, and every other job is gated on its outputs —
