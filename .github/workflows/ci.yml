@@ -360,13 +360,16 @@ jobs:
       - name: Setup Node.js environment
         uses: ./.github/actions/setup-node-env
 
-      - name: Build frontend
-        run: pnpm build
-
+      # Before the build, not after: Vite reads the repo-root .env for the
+      # values that go into the bundle, and VITE_SENTRY_DSN is one the Sentry
+      # spec then needs to have been baked in.
       - name: Setup CI environment
         run: |
           cp .env.ci .env
           grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
+
+      - name: Build frontend
+        run: pnpm build
 
       - name: Run DB Migrations
         run: uv run python manage.py migrate

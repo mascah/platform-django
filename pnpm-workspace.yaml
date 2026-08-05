@@ -8,6 +8,11 @@ packages:
 # core-js' postinstall is a donation banner, esbuild ships its binary via
 # platform-specific optional deps.
 allowBuilds:
+  # Downloads the sentry-cli binary @sentry/vite-plugin shells out to. Only the
+  # source map upload uses it, and that is off without an auth token, but the
+  # download is at install time and cannot be deferred to the builds that need
+  # it. Denied, a build configured to upload fails at the upload.
+  '@sentry/cli': true
   core-js: false
   esbuild: false
 

@@ -535,6 +535,12 @@ CONTENT_SECURITY_POLICY = {
             "https://us.i.posthog.com",
             "https://internal-j.posthog.com",
             "https://cdnjs.cloudflare.com",
+            # Browser errors from the React application. A Sentry DSN's host is
+            # o<org>.ingest.<region>.sentry.io and the region segment differs
+            # per organisation, so the zone is allowed rather than a list of
+            # regions that grows. Missing, the browser drops the request in the
+            # renderer and reports nothing anywhere.
+            "https://*.sentry.io",
         ),
         "frame-ancestors": ("'none'",),
         "form-action": ("'self'",),

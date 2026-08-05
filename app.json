@@ -49,7 +49,27 @@
       "required": false
     },
     "SENTRY_DSN": {
-      "description": "Optional. Error reporting is off while this is unset.",
+      "description": "Optional. Server-side error reporting is off while this is unset. This DSN stays on the dyno; the browser has its own below.",
+      "required": false
+    },
+    "VITE_SENTRY_DSN": {
+      "description": "Optional. Browser error reporting for the React application, off while unset. A separate Sentry project from SENTRY_DSN, and public: it ships inside the JavaScript bundle, which is what the VITE_ prefix means here.",
+      "required": false
+    },
+    "VITE_SENTRY_ENVIRONMENT": {
+      "description": "Optional. Tags browser errors, defaulting to production. Set it alongside SENTRY_ENVIRONMENT on a Preview, or its errors arrive as production issues.",
+      "required": false
+    },
+    "SENTRY_AUTH_TOKEN": {
+      "description": "Optional. Uploads the frontend's source maps at build time, so browser stack traces name a file instead of an offset into a minified bundle. Unset, the build skips the upload and emits no source maps.",
+      "required": false
+    },
+    "SENTRY_ORG": {
+      "description": "Optional. Sentry organisation slug the source maps are uploaded to, used only when SENTRY_AUTH_TOKEN is set.",
+      "required": false
+    },
+    "SENTRY_PROJECT": {
+      "description": "Optional. Sentry project slug for the browser project, used only when SENTRY_AUTH_TOKEN is set.",
       "required": false
     },
     "MAILGUN_API_KEY": {

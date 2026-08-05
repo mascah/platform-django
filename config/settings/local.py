@@ -113,6 +113,11 @@ CONTENT_SECURITY_POLICY = {
             "https://us.i.posthog.com",
             "https://internal-j.posthog.com",
             "https://cdnjs.cloudflare.com",
+            # Kept in step with the base policy: the e2e suite runs a production
+            # build of the application under these settings, so a Sentry host
+            # allowed only in production would be blocked in the one place
+            # anything checks it.
+            "https://*.sentry.io",
             *_vite_dev_servers,
             *_vite_ws_servers,
         ),

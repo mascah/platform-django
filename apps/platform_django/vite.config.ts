@@ -1,3 +1,4 @@
+import { sentryVitePlugin } from '@sentry/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -5,6 +6,21 @@ import { defineConfig, loadEnv } from 'vite';
 
 const envDir = path.resolve(import.meta.dirname, '../..');
 const envPrefix = ['VITE_', 'PROJECT_'];
+
+const outDir = path.resolve(path.join('dist', 'platform_django'));
+
+// Source maps are what turn a stack trace off a minified bundle into one that
+// names a file and a line, and uploading them needs an auth token the template
+// does not ship. Read from the build environment rather than through loadEnv,
+// because this is a build credential and must never reach the bundle.
+//
+// Unset, the plugin is absent altogether and no source maps are emitted: a
+// clone with no Sentry account builds exactly as it did before, with no upload
+// step to fail and no .map files to collect and serve. That makes it part of
+// the build's identity, so it and the two slugs below are declared in
+// turbo.json's `env` — otherwise a build cached without a token gets replayed
+// over one that was meant to upload.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
 
 // A worktree's ports live in the repo-root .env, and both sides of the dev
 // setup have to agree on them: Django reads VITE_PORT to build the script tag
@@ -14,7 +30,29 @@ const envPrefix = ['VITE_', 'PROJECT_'];
 // file here is what the other two sides already do. loadEnv applies a real
 // environment variable over the file, so an explicit VITE_PORT still wins.
 export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    ...(sentryAuthToken
+      ? [
+          sentryVitePlugin({
+            authToken: sentryAuthToken,
+            org: process.env.SENTRY_ORG,
+            project: process.env.SENTRY_PROJECT,
+            // The release the SDK stamps on every event comes from here — the
+            // plugin injects it and detects it from Heroku's SOURCE_VERSION or
+            // the git HEAD, so it is set for exactly the builds that upload.
+            telemetry: false,
+            sourcemaps: {
+              // Deleted once uploaded. collectstatic would otherwise publish
+              // them next to the bundle, which is the whole source of the
+              // application on a public URL.
+              filesToDeleteAfterUpload: [path.join(outDir, '**/*.map')],
+            },
+          }),
+        ]
+      : []),
+  ],
   // Project identity is data, not a rename, so the display name reaches the
   // bundle as an env var. It comes from the repo-root .env locally and from the
   // process environment on a deploy; PROJECT_ only ever matches the slug and
@@ -50,8 +88,10 @@ export default defineConfig(({ mode }) => ({
   base: '/static/platform_django',
   build: {
     manifest: 'manifest.json',
-    outDir: path.resolve(path.join('dist', 'platform_django')),
+    outDir,
     emptyOutDir: true,
+    // Only worth generating when there is somewhere to upload them to.
+    sourcemap: Boolean(sentryAuthToken),
     rollupOptions: {
       input: {
         main: path.resolve('src/main.tsx'),
