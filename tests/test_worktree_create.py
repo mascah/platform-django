@@ -65,6 +65,13 @@ def create_worktree(repo: Path, name: str) -> Path:
     return Path(result.stdout.strip())
 
 
+def test_a_worktree_lands_at_the_repository_root(throwaway_repo: Path):
+    """Not under .claude/: a worktree belongs to the repository, not to a harness."""
+    worktree = create_worktree(throwaway_repo, "alpha")
+
+    assert worktree.parent == (throwaway_repo / "worktrees").resolve()
+
+
 def test_worktree_env_is_complete(throwaway_repo: Path):
     worktree = create_worktree(throwaway_repo, "alpha")
 
