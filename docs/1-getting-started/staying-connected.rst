@@ -36,8 +36,8 @@ remote::
     git remote rename origin template
     gh repo create <owner>/acme-app --private --source=. --remote=origin --push
 
-Four more things carry the template's identity rather than the project's, and
-none of them is a rename --- they are values a human reads:
+Two more things carry the template's identity rather than the project's, and
+neither is a rename --- they are values a human reads:
 
 .. list-table::
    :header-rows: 1
@@ -52,10 +52,11 @@ none of them is a rename --- they are values a human reads:
      - The manifest ``name``, and the ``PROJECT_SLUG`` /
        ``PROJECT_DISPLAY_NAME`` values --- otherwise the project deploys under
        the template's name.
-   * - ``CLAUDE.md``
-     - The line naming the issue repository, so agents file against the project.
-   * - ``docs/agents/issue-tracker.md``
-     - The same repository reference.
+
+``CLAUDE.md`` and ``docs/agents/issue-tracker.md`` used to need the same
+treatment. They no longer name a repository at all --- ``gh`` infers it from
+``git remote -v`` inside any clone --- so agents file against the project
+without either file being touched.
 
 Adding domain modules and frontend applications is unaffected: those are
 additions, named freely, and additions merge cleanly.
@@ -132,8 +133,9 @@ one part of the merge surface where the answer is always the same. Because a
 rewritten file overlaps every hunk, "only when the template touches the same
 lines" stops limiting anything: every merge that touches them conflicts.
 
-``just merge-template`` is the merge with those two settled. Anything else that
-conflicts stops the recipe, because anything else is a real question.
+``just merge-template`` is the merge with those two kept, alongside the
+lockfiles it regenerates. Anything else that conflicts stops the recipe,
+because anything else is a real question.
 
 Git can express "always keep ours" for a path --- ``merge=ours`` in
 ``.gitattributes``, enabled with ``git config merge.ours.driver true`` --- and
@@ -176,6 +178,32 @@ CI runs an ``openapi-client`` job that regenerates the client and fails on any
 diff, so this is checked rather than merely remembered. After any merge touching
 serializers, views, schema annotations or the generator config: run
 ``just openapi`` and commit whatever it produces.
+
+Lockfiles
+---------
+
+``uv.lock`` and ``pnpm-lock.yaml`` are the same shape of problem as the
+generated client, and dependency updates make them the most frequent one. Both
+repositories run Dependabot, and both resolve the same manifests, so a project
+that has added a dependency of its own has a lockfile that diverges from the
+template's on the next bump either side takes.
+
+A lockfile is a resolution of the manifests rather than content, so neither
+side of a conflict is the answer and a textual merge describes a resolution
+that never happened --- a set of versions that no resolver produced and that
+nothing has ever installed. **Regenerate, do not resolve.**
+
+``just merge-template`` does this: it regenerates both from the merged
+manifests rather than picking a side. By hand it is::
+
+    uv lock
+    pnpm install --lockfile-only
+
+The order matters, which is why the recipe stops rather than guessing when a
+manifest is itself conflicted. ``pyproject.toml``, ``package.json`` and
+``pnpm-workspace.yaml`` are what a lockfile resolves; until those are settled
+there is nothing correct to resolve them into. Settle the manifest first, then
+regenerate.
 
 CI workflows
 ------------

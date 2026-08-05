@@ -7,7 +7,7 @@ updates:
   - package-ecosystem: 'github-actions'
     directory: '/'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
     labels:
       - 'dependencies'
       - 'github-actions'
@@ -21,7 +21,7 @@ updates:
     directories:
       - 'docker/production/django/'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
     labels:
       - 'dependencies'
       - 'docker'
@@ -41,7 +41,7 @@ updates:
     directories:
       - '/'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
     labels:
       - 'dependencies'
       - 'docker'
@@ -50,7 +50,7 @@ updates:
   - package-ecosystem: 'uv'
     directory: '/'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
     labels:
       - 'dependencies'
       - 'python'
@@ -65,7 +65,7 @@ updates:
     # Covers root package.json and all workspace packages
     directory: '/'
     schedule:
-      interval: 'weekly'
+      interval: 'monthly'
     labels:
       - 'dependencies'
       - 'javascript'
