@@ -1,6 +1,6 @@
 # Issue tracker: GitHub
 
-Issues and PRDs for this repo live as GitHub issues in `mascah/platform-django`. Use the `gh` CLI for all operations.
+Issues and PRDs for this repo live as GitHub issues in this repository. Use the `gh` CLI for all operations.
 
 ## Conventions
 

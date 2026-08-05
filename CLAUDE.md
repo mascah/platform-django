@@ -95,7 +95,7 @@ Worktree creation, isolation and teardown are in the README and ADR-0003/0004.
 
 ## Repository conventions
 
-- Issues live as GitHub issues in `mascah/platform-django`, managed with `gh` —
+- Issues live as GitHub issues in this repository, managed with `gh` —
   `docs/agents/issue-tracker.md`.
 - Five canonical triage labels, each string equal to its name —
   `docs/agents/triage-labels.md`.
