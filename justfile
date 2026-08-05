@@ -150,6 +150,24 @@ ports:
     @echo "  Redis:     index ${REDIS_DB} on ${REDIS_HOST}:${REDIS_PORT}"
     @echo "  Mailpit:   http://localhost:8025"
 
+# remote: Print the SSH forward that reaches this worktree from another machine.
+#
+# `serve` binds loopback deliberately, and three things downstream are pinned to
+# localhost:<port> — ALLOWED_HOSTS, the development CSP, and the script tag
+# django-vite writes into the page. Forwarding each port to the same number on
+# the far machine keeps the origin localhost over there too, so none of the
+# three has to widen; reaching this host by its own name or its Tailscale
+# address breaks all three at once.
+#
+# The default is this machine's hostname, which is not necessarily what the far
+# machine's ssh config calls it. Set SSH_HOST in .env to the name you actually
+# type — .env keeps keys the template does not carry, and every worktree
+# created from here inherits it.
+remote host=env_var_or_default("SSH_HOST", `hostname -s`):
+    @echo "Run on the machine with the browser, then open http://localhost:${DJANGO_PORT}"
+    @echo
+    @echo "  ssh -N -L ${DJANGO_PORT}:localhost:${DJANGO_PORT} -L ${VITE_PORT}:localhost:${VITE_PORT} {{host}}"
+
 # serve: Run the Django development server on this worktree's port.
 #
 # Loopback rather than 0.0.0.0, because runserver prints the address it bound
