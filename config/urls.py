@@ -10,7 +10,6 @@ from django.http import Http404
 from django.http import HttpResponse
 from django.urls import include
 from django.urls import path
-from django.utils.cache import patch_cache_control
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
@@ -27,11 +26,10 @@ def healthz(request):
 def serve_landing_page(request):
     """Serve the pre-rendered Astro landing page, identically to every visitor.
 
-    The document carries no visitor-specific bytes at all — that is the whole
-    design. Anything session-specific baked in here would leak between visitors
-    of a shared cache, so the page ships both calls to action and decides
-    between them in the browser from a hint cookie, before the first paint
-    (apps/landing/src/session-hint.js).
+    The document carries no visitor-specific bytes at all. The page ships both
+    calls to action and decides between them in the browser from a hint cookie,
+    before the first paint (apps/landing/src/session-hint.js), rather than being
+    rendered per visitor.
 
     That inline script is precisely what a per-request nonce would break, which
     is why this route replaces the nonce with a build-stable hash. The nonce
@@ -47,13 +45,7 @@ def serve_landing_page(request):
         msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
         raise Http404(msg)
 
-    response = HttpResponse(html_path.read_text(), content_type="text/html")
-    # Says out loud what the test proves: this document is the same for
-    # everybody, so a shared cache may hold it. SessionHintMiddleware reads
-    # "public" here as its cue to strip the Vary headers that would otherwise
-    # make a CDN key on each visitor's cookies and cache nothing.
-    patch_cache_control(response, public=True, max_age=0, s_maxage=300)
-    return response
+    return HttpResponse(html_path.read_text(), content_type="text/html")
 
 
 urlpatterns = [

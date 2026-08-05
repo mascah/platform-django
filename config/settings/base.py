@@ -175,10 +175,10 @@ MIDDLEWARE = [
     "csp.middleware.CSPMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
-    # Below WhiteNoise so static files skip it, above the session and locale
-    # middleware so it can undo the Vary headers they add. See its docstring.
-    "config.middleware.SessionHintMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Under the middleware that gives it a session to read, and under WhiteNoise
+    # so static files never reach it.
+    "config.middleware.SessionHintMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",

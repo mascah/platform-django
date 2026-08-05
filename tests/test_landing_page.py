@@ -1,15 +1,12 @@
 """The landing page's contract: one document, the same for every visitor.
 
-Three guarantees hold it together, and each is easy to break by accident.
+Two guarantees hold it together, and each is easy to break by accident.
 
 The page authorises its one inline script by hash rather than by the nonce
-every other route uses, because a nonce is unique per response and a document
-carrying one can never be cached. The hash and the script therefore have to
-change together, and the first test here is what makes that true.
-
-The response must not claim to vary by cookie. Session and locale middleware
-add ``Vary`` to everything indiscriminately, and a shared cache honouring it
-would key on each visitor's analytics cookies and hold nothing.
+every other route uses, because a nonce is unique per response and the script
+has to be able to run from a document that was not rendered for this visitor.
+The hash and the script therefore have to change together, and the first test
+here is what makes that true.
 
 And the bytes must not depend on who is asking. The browser learns whether
 somebody is signed in from a hint cookie, never from the document.
@@ -85,17 +82,6 @@ def test_the_hash_is_scoped_to_the_landing_page(client, settings):
     """
     assert settings.LANDING_SCRIPT_HASH not in _script_src(client.get("/about/"))
     assert NONCE in settings.CONTENT_SECURITY_POLICY["DIRECTIVES"]["script-src"]
-
-
-@pytest.mark.django_db
-def test_landing_page_is_publicly_cacheable_and_does_not_vary(client, landing_page):
-    response = client.get("/")
-
-    assert "public" in response.headers["Cache-Control"]
-    assert not response.has_header("Vary"), (
-        "Vary: Cookie would make a shared cache key on every visitor's "
-        "analytics cookie, which is the same as not caching at all."
-    )
 
 
 @pytest.mark.django_db
