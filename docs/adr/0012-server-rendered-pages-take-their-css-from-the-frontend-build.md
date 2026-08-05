@@ -67,6 +67,17 @@ not survive the repository anyway: `djlint --reformat` runs on staged templates
 at 119 columns, and the shadcn button's base class string is 340 characters
 before variants.
 
+**A downstream project restyles by editing tokens, never partials.** Sharing the
+tokens is what makes that possible, and keeping the component classes thin over
+them is what keeps it true. The look these pages ship with is therefore
+deliberately plain: it is template-owned code inherited by every project
+(ADR-0006), so a design baked into `elements/button.html` would be a permanent
+merge conflict for every project that wanted a different one. The pressure runs
+the other way — the pages are the first thing anyone sees, and improving them in
+the markup is the obvious move. A project changes `--primary` or `--radius` in
+`packages/ui/src/styles/globals.css` and every surface follows, server-rendered
+pages included.
+
 **Removing Bootstrap removes `cdnjs.cloudflare.com`** from `script-src`,
 `style-src` and `connect-src` in both `base.py` and `local.py`, and removes the
 last JavaScript from the server-rendered pages — so the navigation carries no
