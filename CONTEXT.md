@@ -122,3 +122,12 @@ service, which is a thing the application connects to rather than code it runs.
 A read operation a module exposes from its `selectors.py`. It may query
 anything readable, but it never writes and never causes an externally visible
 side effect.
+
+### Serving the code
+
+**Session hint**:
+A non-authoritative signal that somebody is signed in, readable by the browser
+and used only to decide what is shown. It never grants access, never carries
+identity, and may be stale. Authentication remains the server-side session,
+which every protected route still checks.
+_Avoid_: auth cookie, login state, session

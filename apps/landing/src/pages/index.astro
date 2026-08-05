@@ -27,9 +27,19 @@ const projectDisplayName =
         <Button asChild size="lg">
           <a href="/app/">Get Started</a>
         </Button>
-        <Button variant="outline" size="lg" asChild>
-          <a href="/accounts/login/">Sign In</a>
-        </Button>
+        <!-- Both ship in the markup and CSS hides one, so the document stays
+             identical for every visitor. src/session-hint.js decides which,
+             from a cookie, before the first paint. -->
+        <span data-when="signed-out">
+          <Button variant="outline" size="lg" asChild>
+            <a href="/accounts/login/">Sign In</a>
+          </Button>
+        </span>
+        <span data-when="signed-in">
+          <Button variant="outline" size="lg" asChild>
+            <a href="/app/">Open App</a>
+          </Button>
+        </span>
       </div>
     </section>
 

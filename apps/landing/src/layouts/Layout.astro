@@ -1,6 +1,11 @@
 ---
 import '@/styles/globals.css';
 
+// Imported raw so the bytes Django hashes are the bytes the browser executes.
+// Astro would otherwise bundle this to an external module, which is deferred —
+// and a deferred script can paint the wrong call to action before it runs.
+import sessionHint from '@/session-hint.js?raw';
+
 interface Props {
   title: string;
   description?: string;
@@ -17,6 +22,32 @@ const { title, description = 'This is the way.' } = Astro.props;
     <meta name="description" content={description} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+
+    {/* Inline and blocking by necessity: the class has to be on <html> before
+        the first paint. This is exactly what a per-request CSP nonce would
+        break, so "/" authorises it by hash instead — LANDING_SCRIPT_HASH in
+        config/settings/base.py, guarded by tests/test_landing_page.py. */}
+    <script is:inline set:html={sessionHint} />
+
+    {/* Bundled to an external module under /static/, so script-src 'self'
+        covers it with no hash. Landing and the application are the same
+        origin, so PostHog's distinct_id carries across on its own and the two
+        surfaces are one funnel. */}
+    <script>
+      import posthog from 'posthog-js';
+
+      const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
+      const posthogHost =
+        import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
+
+      if (posthogKey && import.meta.env.PROD) {
+        posthog.init(posthogKey, {
+          api_host: posthogHost,
+          capture_pageview: true,
+          capture_pageleave: true,
+        });
+      }
+    </script>
   </head>
   <body class="bg-background text-foreground min-h-screen antialiased">
     <slot />

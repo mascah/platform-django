@@ -53,6 +53,11 @@ jobs:
               - '.importlinter'
               - 'lefthook.yml'
               - '.github/**'
+              # An input to a Python test: tests/test_landing_page.py hashes
+              # this file and fails if it and LANDING_SCRIPT_HASH disagree.
+              # Without it here the guard sits out the one change it exists to
+              # catch, because apps/** only sets the typescript filter.
+              - 'apps/landing/src/session-hint.js'
             typescript:
               - 'apps/**'
               - 'packages/**'

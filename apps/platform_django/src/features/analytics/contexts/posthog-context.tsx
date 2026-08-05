@@ -10,7 +10,10 @@ export function PostHogProvider({ children }: PostHogProviderProps) {
   useEffect(() => {
     // Only initialize PostHog in production
     const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
-    const posthogHost = import.meta.env.VITE_POSTHOG_HOST || 'https://app.posthog.com';
+    // app.posthog.com is the UI, not an ingestion endpoint, and it is absent
+    // from connect-src — the old default was blocked by CSP the moment a key
+    // was set. This one matches the policy and the landing page's default.
+    const posthogHost = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com';
 
     if (posthogKey && import.meta.env.PROD) {
       posthog.init(posthogKey, {

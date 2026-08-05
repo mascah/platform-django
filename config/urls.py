@@ -1,7 +1,7 @@
-import re
 from pathlib import Path
 
 from csp.decorators import csp_exempt
+from csp.decorators import csp_replace
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -10,6 +10,7 @@ from django.http import Http404
 from django.http import HttpResponse
 from django.urls import include
 from django.urls import path
+from django.utils.cache import patch_cache_control
 from django.views import defaults as default_views
 from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView
@@ -22,8 +23,21 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+@csp_replace({"script-src": ["'self'", settings.LANDING_SCRIPT_HASH]})
 def serve_landing_page(request):
-    """Serve pre-rendered Astro landing page with CSP nonce injection."""
+    """Serve the pre-rendered Astro landing page, identically to every visitor.
+
+    The document carries no visitor-specific bytes at all — that is the whole
+    design. Anything session-specific baked in here would leak between visitors
+    of a shared cache, so the page ships both calls to action and decides
+    between them in the browser from a hint cookie, before the first paint
+    (apps/landing/src/session-hint.js).
+
+    That inline script is precisely what a per-request nonce would break, which
+    is why this route replaces the nonce with a build-stable hash. The nonce
+    itself is gone: this view used to regex it into every ``<script>`` tag, on a
+    page that has never contained one.
+    """
     if settings.DEBUG:
         html_path = Path(settings.BASE_DIR) / "apps/landing/dist/index.html"
     else:
@@ -33,13 +47,13 @@ def serve_landing_page(request):
         msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
         raise Http404(msg)
 
-    html = html_path.read_text()
-
-    # Inject CSP nonce into all <script> tags so they pass the nonce-based policy.
-    nonce = str(request.csp_nonce)
-    html = re.sub(r"<script(?=[\s>])", f'<script nonce="{nonce}"', html)
-
-    return HttpResponse(html, content_type="text/html")
+    response = HttpResponse(html_path.read_text(), content_type="text/html")
+    # Says out loud what the test proves: this document is the same for
+    # everybody, so a shared cache may hold it. SessionHintMiddleware reads
+    # "public" here as its cue to strip the Vary headers that would otherwise
+    # make a CDN key on each visitor's cookies and cache nothing.
+    patch_cache_control(response, public=True, max_age=0, s_maxage=300)
+    return response
 
 
 urlpatterns = [
