@@ -57,6 +57,7 @@ Receiving and contributing
 
     # Once, in the project
     git remote add template https://github.com/mascah/platform-django.git
+    git config merge.ours.driver true
 
     # Receive an improvement from the template
     git fetch template
@@ -72,6 +73,30 @@ registers what it has added --- ``INSTALLED_APPS``, the root URL configuration,
 ``pnpm-workspace.yaml``, ``.importlinter``. Keep them in template order. A
 project that reorders or restructures them makes every future merge harder and
 gains nothing for it.
+
+Prose that belongs to the project
+---------------------------------
+
+``README.md`` and ``CONTEXT.md`` describe whichever repository they are in. A
+project rewrites both and never wants the template's copy back, so they are the
+one part of the merge surface where the answer is always the same. Resolving
+that by hand means the same conflict on every merge that touches them, and
+because a rewritten file overlaps every hunk, "only when the template touches
+the same lines" stops being a limit.
+
+``.gitattributes`` marks both ``merge=ours``, which is why the setup above runs
+``git config merge.ours.driver true``. The attribute does nothing without it:
+``ours`` is a merge strategy, not a built-in merge driver, and a repository
+missing the driver just raises the ordinary conflict.
+
+The cost is that these two files stop reporting what the template changed. That
+is the intent, but it is silent::
+
+    git show template/main:README.md
+
+Set the driver per project, never with ``--global``. In the template itself it
+would silently drop a branch's edits to these two files whenever main had
+changed them too --- no conflict, no warning.
 
 The generated API client
 ------------------------
