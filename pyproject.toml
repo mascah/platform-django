@@ -159,6 +159,7 @@ ignore = [
 # Driving a bin/ script as a subprocess is the whole point of these; the
 # "untrusted input" is a literal name and a tmp_path, and eject's exit code is
 # asserted rather than raised on.
+"tests/test_merge_template.py" = ["S603", "S607"]
 "tests/test_worktree_create.py" = ["S603"]
 "tests/test_provision.py" = ["S603", "S607"]
 "tests/test_eject.py" = ["S603", "S607", "PLW1510"]

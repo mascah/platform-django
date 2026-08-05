@@ -205,6 +205,15 @@ manifest is itself conflicted. ``pyproject.toml``, ``package.json`` and
 there is nothing correct to resolve them into. Settle the manifest first, then
 regenerate.
 
+A manifest can also merge cleanly and still be wrong. Two sides that added the
+same key added it on different lines, so git reports no conflict and the file
+no longer parses --- a project that wrote its own ``bin/provision`` and then
+received the template's meets exactly this. The locker is what discovers it,
+and its failure leaves the lockfile unresolved rather than abandoning a
+half-resolved merge. Fix the manifest, then::
+
+    uv lock && git add uv.lock
+
 CI workflows
 ------------
 

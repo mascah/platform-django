@@ -46,6 +46,12 @@ sync-agents:
 # once the manifests they resolve are settled, so a conflict in one of those
 # stops the recipe instead.
 #
+# A manifest can merge cleanly and still be wrong: two sides adding the same
+# key add it on different lines, so git reports no conflict and the file no
+# longer parses. Regeneration is what discovers that, so its failure leaves the
+# lockfile unresolved and ends the recipe the way any other unresolved conflict
+# does, rather than aborting on a half-resolved merge.
+#
 # Anything else stops it too, because anything else is a real question.
 #
 # Deliberately not a merge=ours driver in .gitattributes: a driver is repo-wide
@@ -82,9 +88,12 @@ merge-template remote="template" branch="main":
             echo "pyproject.toml conflicts. Resolve it, then: uv lock && git add uv.lock" >&2
         else
             git checkout --theirs -- uv.lock
-            uv lock
-            git add -- uv.lock
-            echo "Regenerated uv.lock"
+            if uv lock; then
+                git add -- uv.lock
+                echo "Regenerated uv.lock"
+            else
+                echo "uv lock failed, above. Fix pyproject.toml, then: uv lock && git add uv.lock" >&2
+            fi
         fi
     fi
     if unmerged pnpm-lock.yaml; then
@@ -92,9 +101,12 @@ merge-template remote="template" branch="main":
             echo "A manifest conflicts. Resolve it, then: pnpm install --lockfile-only && git add pnpm-lock.yaml" >&2
         else
             git checkout --theirs -- pnpm-lock.yaml
-            pnpm install --lockfile-only
-            git add -- pnpm-lock.yaml
-            echo "Regenerated pnpm-lock.yaml"
+            if pnpm install --lockfile-only; then
+                git add -- pnpm-lock.yaml
+                echo "Regenerated pnpm-lock.yaml"
+            else
+                echo "pnpm install failed, above. Fix the manifest, then: pnpm install --lockfile-only && git add pnpm-lock.yaml" >&2
+            fi
         fi
     fi
 
