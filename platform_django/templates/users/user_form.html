@@ -1,21 +1,22 @@
 {% extends "base.html" %}
 
-{% load crispy_forms_tags %}
+{% load allauth i18n %}
 
 {% block title %}
   {{ user.username }}
 {% endblock title %}
 {% block content %}
   <h1>{{ user.username }}</h1>
-  <form class="form-horizontal"
-        method="post"
-        action="{% url 'users:update' %}">
+  {% comment %}
+    The same field definition the authentication pages use, rather than a
+    second one for the two forms that are not allauth's.
+  {% endcomment %}
+  <form method="post" action="{% url 'users:update' %}">
     {% csrf_token %}
-    {{ form|crispy }}
-    <div class="control-group">
-      <div class="controls">
-        <button type="submit" class="btn btn-primary">Update</button>
-      </div>
-    </div>
+    {% element fields form=form %}
+    {% endelement %}
+    {% element button type="submit" %}
+      {% translate "Update" %}
+    {% endelement %}
   </form>
 {% endblock content %}

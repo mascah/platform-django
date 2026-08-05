@@ -55,6 +55,11 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       input: {
         main: path.resolve('src/main.tsx'),
+        // The stylesheet for everything Django renders from a template, built
+        // here so it shares one Tailwind and one set of tokens with the
+        // application (ADR-0012). base.html reads it out of the manifest with
+        // {% vite_asset_url 'django.css' %}.
+        django: path.resolve('src/django.css'),
       },
     },
   },

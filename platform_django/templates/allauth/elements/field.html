@@ -1,69 +1,73 @@
 {% load allauth %}
-{% load crispy_forms_tags %}
 
-{% if attrs.type == "textarea" %}
-  <div class="row mb-3">
-    <div class="col-sm-10">
-      <label for="{{ attrs.id }}">
+{# The single definition of a form field. allauth calls this both directly #}
+{# and through fields.html, so the contract is the flat one allauth already #}
+{# uses: type, id, name, value, errors and the label slot. #}
+{# A password is never written back into the markup. Rendering the input #}
+{# here rather than through the widget bypasses PasswordInput's own #}
+{# render_value=False, so this is the only thing standing between a #}
+{# rejected sign-in and the password in the page source. #}
+<div class="field">
+  {% if attrs.type == "textarea" %}
+    {% if slots.label %}
+      <label class="field-label" for="{{ attrs.id }}">
         {% slot label %}
         {% endslot %}
       </label>
-    </div>
+    {% endif %}
     <textarea {% if attrs.required %}required{% endif %}
               {% if attrs.rows %}rows="{{ attrs.rows }}"{% endif %}
               {% if attrs.disabled %}disabled{% endif %}
               {% if attrs.readonly %}readonly{% endif %}
-              {% if attrs.checked %}checked{% endif %}
               {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
               {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
               {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-              class="form-control">{% slot value %}{% endslot %}</textarea>
-  </div>
-{% elif attrs.type == "radio" %}
-  <div class="row mb-3">
-    <div class="col-sm-10">
-      <div class="form-check">
-        <input {% if attrs.required %}required{% endif %}
-               {% if attrs.disabled %}disabled{% endif %}
-               {% if attrs.readonly %}readonly{% endif %}
-               {% if attrs.checked %}checked{% endif %}
-               {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
-               {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
-               {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
-               {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
-               value="{{ attrs.value|default_if_none:"" }}"
-               type="{{ attrs.type }}" />
-        <label class="form-check-label" for="{{ attrs.id }}">
+              class="field-control">{% slot value %}{% endslot %}</textarea>
+  {% elif attrs.type == "checkbox" or attrs.type == "radio" %}
+    <div class="field-check">
+      <input {% if attrs.required %}required{% endif %}
+             {% if attrs.disabled %}disabled{% endif %}
+             {% if attrs.readonly %}readonly{% endif %}
+             {% if attrs.checked %}checked{% endif %}
+             {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
+             {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
+             {% if attrs.value %}value="{{ attrs.value }}"{% endif %}
+             type="{{ attrs.type }}"
+             class="field-check-control" />
+      {% if slots.label %}
+        <label class="field-label" for="{{ attrs.id }}">
           {% slot label %}
           {% endslot %}
         </label>
-      </div>
+      {% endif %}
     </div>
-  </div>
-{% else %}
-  <div class="col-sm-10">
-    <label for="{{ attrs.id }}">
-      {% slot label %}
-      {% endslot %}
-    </label>
-  </div>
-  <div class="col-sm-10">
+  {% else %}
+    {% if slots.label %}
+      <label class="field-label" for="{{ attrs.id }}">
+        {% slot label %}
+        {% endslot %}
+      </label>
+    {% endif %}
     <input {% if attrs.required %}required{% endif %}
            {% if attrs.disabled %}disabled{% endif %}
            {% if attrs.readonly %}readonly{% endif %}
-           {% if attrs.checked %}checked{% endif %}
            {% if attrs.name %}name="{{ attrs.name }}"{% endif %}
            {% if attrs.id %}id="{{ attrs.id }}"{% endif %}
            {% if attrs.placeholder %}placeholder="{{ attrs.placeholder }}"{% endif %}
            {% if attrs.autocomplete %}autocomplete="{{ attrs.autocomplete }}"{% endif %}
-           value="{{ attrs.value|default_if_none:"" }}"
+           {% if attrs.type != "password" %}value="{{ attrs.value|default_if_none:"" }}"{% endif %}
            type="{{ attrs.type }}"
-           class="form-control" />
-  </div>
-{% endif %}
-{% if slots.help_text %}
-  <div class="form-text">
-    {% slot help_text %}
-    {% endslot %}
-  </div>
-{% endif %}
+           class="field-control" />
+  {% endif %}
+  {% if slots.help_text %}
+    <div class="field-help">
+      {% slot help_text %}
+      {% endslot %}
+    </div>
+  {% endif %}
+  {% if attrs.errors %}
+    <ul class="field-errors">
+      {% for error in attrs.errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+</div>
