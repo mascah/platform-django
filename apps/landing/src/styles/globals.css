@@ -1,2 +1,22 @@
 @import 'tailwindcss';
 @import '@workspace/ui/globals.css';
+
+/* src/session-hint.js stamps one of these classes on <html> before the first
+   paint. Signed-out is the default, so a visitor with JavaScript disabled sees
+   the signed-out call to action rather than both. display: contents keeps the
+   wrapper out of the layout, so either state lays out identically. */
+[data-when] {
+  display: contents;
+}
+
+[data-when='signed-in'] {
+  display: none;
+}
+
+html.signed-in [data-when='signed-in'] {
+  display: contents;
+}
+
+html.signed-in [data-when='signed-out'] {
+  display: none;
+}

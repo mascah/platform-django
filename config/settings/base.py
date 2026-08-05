@@ -176,6 +176,9 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Under the middleware that gives it a session to read, and under WhiteNoise
+    # so static files never reach it.
+    "config.middleware.SessionHintMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -497,6 +500,14 @@ DJANGO_VITE = {
         ),
     },
 }
+
+# The landing page's inline session-hint script, authorised by hash rather than
+# by the nonce every other route uses. A nonce is unique per response, so a
+# document carrying one can never be cached; a hash is stable across every copy
+# of the same document. Only "/" is given it — see serve_landing_page — and
+# tests/test_landing_page.py fails if this and apps/landing/src/session-hint.js
+# ever drift apart.
+LANDING_SCRIPT_HASH = "'sha256-8PZwLsjJ4PUUe4Oi3au2qP7kQrELVFky8oeVxjA4ktc='"
 
 # Content Security Policy (CSP)
 # https://django-csp.readthedocs.io/

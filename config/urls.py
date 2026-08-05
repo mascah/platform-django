@@ -1,7 +1,7 @@
-import re
 from pathlib import Path
 
 from csp.decorators import csp_exempt
+from csp.decorators import csp_replace
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -22,8 +22,20 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+@csp_replace({"script-src": ["'self'", settings.LANDING_SCRIPT_HASH]})
 def serve_landing_page(request):
-    """Serve pre-rendered Astro landing page with CSP nonce injection."""
+    """Serve the pre-rendered Astro landing page, identically to every visitor.
+
+    The document carries no visitor-specific bytes at all. The page ships both
+    calls to action and decides between them in the browser from a hint cookie,
+    before the first paint (apps/landing/src/session-hint.js), rather than being
+    rendered per visitor.
+
+    That inline script is precisely what a per-request nonce would break, which
+    is why this route replaces the nonce with a build-stable hash. The nonce
+    itself is gone: this view used to regex it into every ``<script>`` tag, on a
+    page that has never contained one.
+    """
     if settings.DEBUG:
         html_path = Path(settings.BASE_DIR) / "apps/landing/dist/index.html"
     else:
@@ -33,13 +45,7 @@ def serve_landing_page(request):
         msg = "Landing page not found. Run 'pnpm build' in apps/landing first."
         raise Http404(msg)
 
-    html = html_path.read_text()
-
-    # Inject CSP nonce into all <script> tags so they pass the nonce-based policy.
-    nonce = str(request.csp_nonce)
-    html = re.sub(r"<script(?=[\s>])", f'<script nonce="{nonce}"', html)
-
-    return HttpResponse(html, content_type="text/html")
+    return HttpResponse(html_path.read_text(), content_type="text/html")
 
 
 urlpatterns = [
