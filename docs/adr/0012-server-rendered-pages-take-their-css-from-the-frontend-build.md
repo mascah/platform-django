@@ -67,6 +67,20 @@ not survive the repository anyway: `djlint --reformat` runs on staged templates
 at 119 columns, and the shadcn button's base class string is 340 characters
 before variants.
 
+**Tokens are the conflict-free path; editing a partial is expected and costs a
+merge.** A project that wants a logo in the entrance header, or a different
+panel layout, edits the template — that is what template-owned code is for, and
+ADR-0006 already accounts for the cost: the project owns a conflict on that file
+whenever the template changes it too. What the template owes a project is that
+this cost is never the price of changing a colour or a corner radius. So the
+look ships deliberately plain and the component classes stay thin over the
+tokens: changing `--primary` or `--radius` in
+`packages/ui/src/styles/globals.css` moves every surface, server-rendered pages
+included, and conflicts with nothing. The pressure runs the other way — these
+pages are the first thing anyone sees, so baking a design into
+`elements/button.html` is the obvious move, and it charges every downstream
+project a merge for a decision they were always going to overrule.
+
 **Removing Bootstrap removes `cdnjs.cloudflare.com`** from `script-src`,
 `style-src` and `connect-src` in both `base.py` and `local.py`, and removes the
 last JavaScript from the server-rendered pages — so the navigation carries no
