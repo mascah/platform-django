@@ -1,14 +1,1 @@
 * text=auto
-
-# README.md and CONTEXT.md describe whichever repository they are in, so a
-# project rewrites both and never wants the template's copy back. Marking them
-# merge=ours settles that one way every time instead of raising the same
-# conflict on every merge from the template.
-#
-# These two lines do nothing on their own: "ours" is a merge strategy, not a
-# built-in driver. Enabling it is one command per project, in
-# docs/1-getting-started/staying-connected.rst. Never enable it globally --- in
-# this repository it would silently drop a branch's edits to these two files
-# whenever main had changed them too.
-README.md merge=ours
-CONTEXT.md merge=ours
