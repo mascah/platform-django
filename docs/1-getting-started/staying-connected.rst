@@ -110,8 +110,7 @@ Receiving and contributing
     git remote add template https://github.com/mascah/platform-django.git
 
     # Receive an improvement from the template
-    git fetch template
-    git merge template/main
+    just merge-template
 
     # Contribute one back
     git checkout -b improvement template/main
@@ -123,6 +122,31 @@ registers what it has added --- ``INSTALLED_APPS``, the root URL configuration,
 ``pnpm-workspace.yaml``, ``.importlinter``. Keep them in template order. A
 project that reorders or restructures them makes every future merge harder and
 gains nothing for it.
+
+Prose that belongs to the project
+---------------------------------
+
+``README.md`` and ``CONTEXT.md`` describe whichever repository they are in. A
+project rewrites both and never wants the template's copy back, so they are the
+one part of the merge surface where the answer is always the same. Because a
+rewritten file overlaps every hunk, "only when the template touches the same
+lines" stops limiting anything: every merge that touches them conflicts.
+
+``just merge-template`` is the merge with those two settled. Anything else that
+conflicts stops the recipe, because anything else is a real question.
+
+Git can express "always keep ours" for a path --- ``merge=ours`` in
+``.gitattributes``, enabled with ``git config merge.ours.driver true`` --- and
+it is the wrong tool here. A merge driver is repository-wide and cannot tell a
+merge from the template from the project's own. Enabled, it would also resolve
+a branch that edited ``CONTEXT.md`` while main had edited it too, silently, in
+favour of main. That is a plain loss of work, with no conflict and no warning,
+and ``CONTEXT.md`` is a file a project edits often.
+
+The cost of the recipe is smaller and visible: these two files stop reporting
+what the template changed. That is the intent, and it is one command to check::
+
+    git show template/main:README.md
 
 The generated API client
 ------------------------

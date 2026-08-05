@@ -30,6 +30,44 @@ env-refresh *args:
 sync-agents:
     @./bin/sync-agents
 
+# merge-template: Receive the template's improvements, keeping this project's prose.
+#
+# README.md and CONTEXT.md describe whichever repository they are in, so a
+# project rewrites both and never wants the template's copy back. Because a
+# rewritten file overlaps every hunk, they conflict on every merge that touches
+# them, forever. This settles those two and stops on anything else, which is
+# the part that still wants a human.
+#
+# Deliberately not a merge=ours driver in .gitattributes: a driver is repo-wide
+# and cannot tell this merge from an ordinary one, so it would also drop a
+# branch's edits to those files during the project's own merges, with no
+# conflict and no warning.
+merge-template remote="template" branch="main":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    git fetch {{remote}}
+    if git merge --no-edit {{remote}}/{{branch}}; then
+        exit 0
+    fi
+    if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+        echo "The merge did not start, so nothing was changed." >&2
+        exit 1
+    fi
+    for file in README.md CONTEXT.md; do
+        if git ls-files --unmerged -- "$file" | grep -q .; then
+            git checkout --ours -- "$file"
+            git add -- "$file"
+            echo "Kept this project's $file"
+        fi
+    done
+    if git ls-files --unmerged | grep -q .; then
+        echo ""
+        echo "Conflicts remain outside README.md and CONTEXT.md. Resolve them," >&2
+        echo "then run: git commit" >&2
+        exit 1
+    fi
+    git commit --no-edit
+
 # === Backing Services ===
 #
 # One Postgres and one Redis serve every worktree on this machine, so these
