@@ -16,7 +16,12 @@ SECRET_KEY = env(
     default="huldAQEdv35LFtPDGq0NKFKOfnx41S7FaqCLqm8d0MTQzGVaLt9xviyRwSaHEaOG",
 )
 # https://docs.djangoproject.com/en/dev/ref/settings/#allowed-hosts
-ALLOWED_HOSTS = ["localhost", "0.0.0.0", "127.0.0.1"]  # noqa: S104
+# "0.0.0.0" is deliberately absent. It is a bind address rather than a name a
+# browser should be given, and accepting it here is what lets a developer load
+# the app on an origin the browser treats as untrustworthy — COOP dropped, and
+# the Vite dev server refusing the module request. Leaving it out turns that
+# into an immediate DisallowedHost instead of a page that half works.
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 # EMAIL
 # ------------------------------------------------------------------------------

@@ -114,8 +114,16 @@ ports:
     @echo "  Mailpit:   http://localhost:8025"
 
 # serve: Run the Django development server on this worktree's port.
+#
+# Loopback rather than 0.0.0.0, because runserver prints the address it bound
+# and that line is the one a developer clicks. http://0.0.0.0:8000/ is not a
+# potentially trustworthy origin, so the browser drops the COOP header, and
+# Vite's dev server refuses it as a cross-origin request, which reads as an
+# app that will not load. To reach this server from another machine, forward
+# the port over SSH rather than widening the bind — the origin stays localhost
+# and nothing here has to change.
 serve:
-    @uv run python manage.py runserver 0.0.0.0:${DJANGO_PORT}
+    @uv run python manage.py runserver 127.0.0.1:${DJANGO_PORT}
 
 # worker: Run a Celery worker against this worktree's Redis index.
 worker:
