@@ -19,6 +19,13 @@
 # =============================================================================
 set -euo pipefail
 
+# A worktree created minutes ago is finished by every structural test — its
+# branch is at main and nothing is uncommitted, because no work has happened
+# yet. Only time tells it apart from one whose work landed. Git touches the
+# index on nearly every command a live session runs, so its age stands in for
+# the session's. Raise this if a worktree can sit idle longer than it.
+IDLE_MINUTES=60
+
 log() { echo "$@" >&2; }
 
 MAIN=$(git worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p' || true)
@@ -26,6 +33,11 @@ if [[ -z "$MAIN" ]]; then
   log "Error: $PWD is not a git checkout"
   exit 1
 fi
+
+# A worktree deleted by hand leaves its registration behind, and every test
+# below needs a directory to run in, so those entries would survive every pass.
+# Pruning only drops registrations whose directory is already gone.
+git -C "$MAIN" worktree prune
 
 # tail -n +2 drops the main checkout, which is never a candidate.
 git -C "$MAIN" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2 |
@@ -40,6 +52,9 @@ git -C "$MAIN" worktree list --porcelain | sed -n 's/^worktree //p' | tail -n +2
 
     git -C "$MAIN" merge-base --is-ancestor "$branch" main 2>/dev/null || continue
     [[ -z "$(git -C "$path" status --porcelain 2>/dev/null)" ]] || continue
+
+    index="$(git -C "$path" rev-parse --absolute-git-dir 2>/dev/null)/index"
+    [[ -z "$(find "$index" -mmin "-$IDLE_MINUTES" 2>/dev/null)" ]] || continue
 
     if [[ "${1:-}" == "--yes" ]]; then
       "$MAIN/bin/worktree-destroy" "$path"
