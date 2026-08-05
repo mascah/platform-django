@@ -30,92 +30,9 @@ env-refresh *args:
 sync-agents:
     @./bin/sync-agents
 
-# merge-template: Receive the template's improvements, settling what always
-# settles the same way.
-#
-# Two kinds of file conflict on nearly every merge from the template, and they
-# want opposite verbs.
-#
-# README.md and CONTEXT.md describe whichever repository they are in, so a
-# project rewrites both and never wants the template's copy back. A rewritten
-# file overlaps every hunk, so they conflict every time. They are kept.
-#
-# uv.lock and pnpm-lock.yaml are resolutions of the manifests rather than
-# content, so neither side is the answer and a textual merge describes a
-# resolution that never happened. They are regenerated. That can only be done
-# once the manifests they resolve are settled, so a conflict in one of those
-# stops the recipe instead.
-#
-# A manifest can merge cleanly and still be wrong: two sides adding the same
-# key add it on different lines, so git reports no conflict and the file no
-# longer parses. Regeneration is what discovers that, so its failure leaves the
-# lockfile unresolved and ends the recipe the way any other unresolved conflict
-# does, rather than aborting on a half-resolved merge.
-#
-# Anything else stops it too, because anything else is a real question.
-#
-# Deliberately not a merge=ours driver in .gitattributes: a driver is repo-wide
-# and cannot tell this merge from an ordinary one, so it would also drop a
-# branch's edits to those files during the project's own merges, with no
-# conflict and no warning.
+# merge-template: Receive the template's improvements, settling what always settles the same way.
 merge-template remote="template" branch="main":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    git fetch {{remote}}
-    if git merge --no-edit {{remote}}/{{branch}}; then
-        exit 0
-    fi
-    if ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
-        echo "The merge did not start, so nothing was changed." >&2
-        exit 1
-    fi
-
-    unmerged() { git ls-files --unmerged -- "$@" | grep -q .; }
-
-    for file in README.md CONTEXT.md; do
-        if unmerged "$file"; then
-            git checkout --ours -- "$file"
-            git add -- "$file"
-            echo "Kept this project's $file"
-        fi
-    done
-
-    # --theirs is the base to regenerate from, not the answer: it carries the
-    # template's bumps in, and the locker then reconciles them against the
-    # merged manifest, which is where this project's own dependencies are.
-    if unmerged uv.lock; then
-        if unmerged pyproject.toml; then
-            echo "pyproject.toml conflicts. Resolve it, then: uv lock && git add uv.lock" >&2
-        else
-            git checkout --theirs -- uv.lock
-            if uv lock; then
-                git add -- uv.lock
-                echo "Regenerated uv.lock"
-            else
-                echo "uv lock failed, above. Fix pyproject.toml, then: uv lock && git add uv.lock" >&2
-            fi
-        fi
-    fi
-    if unmerged pnpm-lock.yaml; then
-        if unmerged '*package.json' pnpm-workspace.yaml; then
-            echo "A manifest conflicts. Resolve it, then: pnpm install --lockfile-only && git add pnpm-lock.yaml" >&2
-        else
-            git checkout --theirs -- pnpm-lock.yaml
-            if pnpm install --lockfile-only; then
-                git add -- pnpm-lock.yaml
-                echo "Regenerated pnpm-lock.yaml"
-            else
-                echo "pnpm install failed, above. Fix the manifest, then: pnpm install --lockfile-only && git add pnpm-lock.yaml" >&2
-            fi
-        fi
-    fi
-
-    if git ls-files --unmerged | grep -q .; then
-        echo ""
-        echo "Conflicts remain. Resolve them, then run: git commit" >&2
-        exit 1
-    fi
-    git commit --no-edit
+    @./bin/merge-template {{remote}} {{branch}}
 
 # === Backing Services ===
 #

@@ -1,6 +1,6 @@
-"""Drive `just merge-template` against two throwaway repositories.
+"""Drive bin/merge-template against two throwaway repositories.
 
-The recipe settles what always settles the same way and stops at anything else,
+The script settles what always settles the same way and stops at anything else,
 so what these assert is where that line falls when a lockfile cannot be
 regenerated. A manifest can merge cleanly and still not parse — two sides
 adding the same key add it on different lines — and the locker is what finds
@@ -47,8 +47,11 @@ def commit(repo: Path, name: str, content: str) -> None:
 def child(tmp_path: Path) -> Path:
     """A clone whose uv.lock conflicts with its template's, and nothing else."""
     template = tmp_path / "template"
-    template.mkdir()
-    (template / "justfile").write_bytes((REPO_ROOT / "justfile").read_bytes())
+    (template / "bin").mkdir(parents=True)
+    source = REPO_ROOT / "bin" / "merge-template"
+    script = template / "bin" / "merge-template"
+    script.write_bytes(source.read_bytes())
+    script.chmod(source.stat().st_mode)
     (template / "pyproject.toml").write_text('[project]\nname = "throwaway"\n')
     git(template, "init", "-q", "-b", "main")
     git(template, "config", "user.email", "t@example.com")
@@ -67,7 +70,7 @@ def child(tmp_path: Path) -> Path:
 
 
 def merge(child: Path, uv_source: str) -> subprocess.CompletedProcess[str]:
-    """Run the recipe with `uv` shimmed to the behaviour under test."""
+    """Run the script with `uv` shimmed to the behaviour under test."""
     shims = child.parent / "shims"
     shims.mkdir(exist_ok=True)
     executable = shims / "uv"
@@ -75,7 +78,7 @@ def merge(child: Path, uv_source: str) -> subprocess.CompletedProcess[str]:
     executable.chmod(0o755)
     environment = {**os.environ, "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}"}
     return subprocess.run(
-        ["just", "merge-template", "origin", "main"],
+        [str(child / "bin" / "merge-template"), "origin", "main"],
         cwd=child,
         capture_output=True,
         text=True,
