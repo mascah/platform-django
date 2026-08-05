@@ -39,6 +39,24 @@ class TestUserDetailView:
         assert response["Location"] == f"{reverse(settings.LOGIN_URL)}?next={url}"
 
 
+class TestLoginEntrance:
+    def test_sends_an_already_signed_in_visitor_to_the_application(
+        self, user: User, client: Client
+    ):
+        """The landing page links here unconditionally, so this is the loop.
+
+        allauth's ``RedirectAuthenticatedUserMixin`` bounces a signed-in visitor
+        to ``LOGIN_REDIRECT_URL``. Pointing that at ``/`` returned them to the
+        landing page they had just clicked Sign In on.
+        """
+        client.force_login(user)
+
+        response = client.get(reverse("account_login"))
+
+        assert response.status_code == HTTPStatus.FOUND
+        assert response["Location"] == "/app/"
+
+
 class TestUserRedirectView:
     def test_redirects_to_the_visitors_own_detail_page(
         self, user: User, client: Client
