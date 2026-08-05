@@ -91,6 +91,11 @@ Run the narrowest check that covers the change first, then widen.
 - `just serve` and `pnpm dev` — Django and Vite, on this worktree's ports.
 - `just manage <cmd>` — `manage.py` against this worktree's database.
 
+Nothing injects this worktree's environment into a shell command. `just`, Django
+and Vite each read the root `.env` themselves, which covers everything above; a
+bare `psql` or `redis-cli` does not, and will address the wrong database
+quietly. Prefix those with `mise exec --` (ADR-0004).
+
 Worktree creation, isolation and teardown are in the README and ADR-0003/0004.
 
 ## Repository conventions
