@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# =============================================================================
+# bin/provision — create and deploy a Heroku app from app.json
+# =============================================================================
+#   bin/provision [app-name] [--dry-run]
+#
+# app.json is this repository's deployment manifest, but no Heroku CLI command
+# reads it. `heroku create --manifest` reads heroku.yml, which is a different
+# format for a different purpose: its setup section is only honoured on the
+# container stack, and this app builds with buildpacks. app.json is consumed by
+# review apps, by the Heroku Button (public repositories only) and by the
+# App Setups API — none of which help provision a private project's first app.
+#
+# So the manifest is applied here instead, in the order Heroku requires:
+#
+#   create → buildpacks → addons → config → push → scale
+#
+# The last two cannot be swapped. `ps:scale` needs a process type, which does
+# not exist until a slug has been built, and the release command in Procfile
+# runs `migrate`, which needs DATABASE_URL and DJANGO_SETTINGS_MODULE to have
+# been set before the push. Getting that order wrong is how an app ends up
+# serving Heroku's default welcome page.
+#
+# Values come from app.json and nowhere else, so graduating a tier stays what
+# docs/7-deployment/tiers.rst says it is: a diff to that file. Config variables
+# declared `required: false` are left unset — that is what the prototype tier
+# means, and inventing values for Sentry or Mailgun would only half-configure
+# them.
+#
+# --dry-run prints the commands instead of running them, which is worth doing
+# first: everything after `create` bills to the account that owns the app.
+# =============================================================================
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+log() { echo "$@" >&2; }
+
+DRY_RUN=""
+APP=""
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=1 ;;
+    -*) log "Error: unknown option $arg"; exit 1 ;;
+    *) APP="$arg" ;;
+  esac
+done
+
+if [[ ! -f app.json ]]; then
+  log "Error: app.json not found; run this from the repository"
+  exit 1
+fi
+
+# The manifest names the app, so a project that renamed itself does not have to
+# repeat the name here.
+APP="${APP:-$(jq -r '.name' app.json)}"
+STACK="$(jq -r '.stack' app.json)"
+
+# In a dry run the printed commands should be copy-pasteable, so a generated
+# secret stays as the expression that generates one rather than being fixed here.
+secret() {
+  if [[ -n "$DRY_RUN" ]]; then echo '$(openssl rand -hex 32)'; else openssl rand -hex 32; fi
+}
+
+run() {
+  if [[ -n "$DRY_RUN" ]]; then
+    # An argument with a space — PROJECT_DISPLAY_NAME, or the expression that
+    # generates a secret — has to survive being pasted back into a shell.
+    # Double quotes rather than single: they hold the value together and still
+    # let the substitution run.
+    local printable=() arg
+    for arg in "$@"; do
+      [[ "$arg" == *" "* ]] && arg="\"$arg\""
+      printable+=("$arg")
+    done
+    printf '%s\n' "${printable[*]}"
+  else
+    log "+ $*"
+    "$@"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Create, or configure in place
+# ---------------------------------------------------------------------------
+# Provisioning is six steps against a billed account and any one of them can
+# fail, so re-running has to be safe. A dry run never touches the network, and
+# so cannot ask whether the app is already there.
+if [[ -z "$DRY_RUN" ]] && heroku apps:info --app "$APP" >/dev/null 2>&1; then
+  log "App $APP already exists — configuring it in place."
+else
+  run heroku create "$APP" --stack "$STACK"
+fi
+
+# ---------------------------------------------------------------------------
+# Buildpacks, in the manifest's order
+# ---------------------------------------------------------------------------
+# Cleared first because buildpacks:add appends: without this, a second run
+# builds the frontend twice. Order is load-bearing — the Python buildpack's
+# collectstatic has to find what the Node build produced.
+run heroku buildpacks:clear --app "$APP"
+while read -r url; do
+  [[ -n "$url" ]] && run heroku buildpacks:add "$url" --app "$APP"
+done < <(jq -r '.buildpacks[].url' app.json)
+
+# ---------------------------------------------------------------------------
+# Add-ons
+# ---------------------------------------------------------------------------
+while read -r plan; do
+  [[ -n "$plan" ]] && run heroku addons:create "$plan" --app "$APP"
+done < <(jq -r '.addons[].plan' app.json)
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+# A literal value is passed through, a generator gets one, and anything with
+# neither is optional by declaration and stays unset. The two branches are
+# exclusive: a variable declaring both is taken as the literal, or it would
+# reach config:set twice and the winner would be Heroku's to decide.
+#
+# jq decides which of those a variable is, rather than the shell splitting a
+# record into fields. Tab is an IFS whitespace character, so `read` collapses
+# runs of tabs and drops empty fields: a variable declaring a generator and no
+# value arrives one field short, and its generator is read as its value. That
+# silently set DJANGO_SECRET_KEY to the string "secret".
+CONFIG=()
+while read -r assignment; do
+  [[ -n "$assignment" ]] && CONFIG+=("$assignment")
+done < <(jq -r '.env | to_entries[]
+                | select((.value.value // "") != "")
+                | "\(.key)=\(.value.value)"' app.json)
+
+while read -r key; do
+  [[ -n "$key" ]] && CONFIG+=("$key=$(secret)")
+done < <(jq -r '.env | to_entries[]
+                | select(.value.generator == "secret" and (.value.value // "") == "")
+                | .key' app.json)
+
+# Heroku defines no generator but "secret". A typo in one would otherwise leave
+# a variable that has no default silently unset, and the app would boot broken.
+while read -r warning; do
+  log "Warning: $warning"
+done < <(jq -r '.env | to_entries[]
+                | select((.value.generator // "") | . != "" and . != "secret")
+                | "\(.key) declares unsupported generator \(.value.generator) — left unset"' app.json)
+
+[[ ${#CONFIG[@]} -gt 0 ]] && run heroku config:set --app "$APP" "${CONFIG[@]}"
+
+# ---------------------------------------------------------------------------
+# Deploy
+# ---------------------------------------------------------------------------
+# HEAD rather than main, so provisioning from a branch pushes what is checked
+# out instead of silently deploying something else.
+run heroku git:remote --app "$APP"
+run git push heroku HEAD:refs/heads/main
+
+# ---------------------------------------------------------------------------
+# Formation
+# ---------------------------------------------------------------------------
+# After the push: a process type does not exist until a slug declares it.
+while read -r scale; do
+  [[ -n "$scale" ]] && run heroku ps:scale "$scale" --app "$APP"
+done < <(jq -r '.formation | to_entries[]
+                | "\(.key)=\(.value.quantity):\(.value.size)"' app.json)
+
+if [[ -z "$DRY_RUN" ]]; then
+  log ""
+  log "Provisioned $APP. Merging a pull request does not deploy this app:"
+  log "enable Automatic deploys from main for it in the pipeline dashboard,"
+  log "or re-run this script. See docs/7-deployment/previews.rst."
+fi

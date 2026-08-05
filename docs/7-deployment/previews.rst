@@ -22,9 +22,16 @@ pull request automatically.
 Turning Previews on
 -------------------
 
-Three steps, once per project.
+Four steps, once per project.
 
-**1. Create the pipeline and connect GitHub.** Previews require both. The
+**1. Have a deployed production app.** The pipeline is created *around* an
+existing app, and pointing one at an app that has never been deployed is
+undetectable from the pipeline: Previews work perfectly while production serves
+Heroku's default welcome page. ``just provision`` is what creates and deploys it
+(:doc:`tiers`); ``heroku releases`` should show a ``Deploy`` release, and
+``heroku apps:info`` a non-zero slug size, before continuing.
+
+**2. Create the pipeline and connect GitHub.** Previews require both. The
 account that connects the repository is the account Previews are billed to, and
 it must be verified, since Previews provision add-ons.
 
@@ -35,7 +42,20 @@ it must be verified, since Previews provision add-ons.
 Connect the GitHub repository from the pipeline's page in the dashboard; the
 CLI cannot do it.
 
-**2. Enable review apps.**
+While you are there, enable **Automatic deploys** from ``main`` for the
+production app. Nothing else makes a merge deploy: review apps deploy branches
+and are destroyed on merge, and a single-stage pipeline has no lower stage to
+promote from.
+
+.. warning::
+
+   Destroying the only app in a pipeline destroys the pipeline with it, and the
+   review-app settings and *Review app config vars* — including
+   ``E2E_USER_PASSWORD`` — go too. Reprovision the app without
+   ``heroku apps:destroy`` where you can; where you cannot, expect to repeat
+   every step on this page.
+
+**3. Enable review apps.**
 
 .. code-block:: bash
 
@@ -51,7 +71,7 @@ Then set the stale-app timer to **1 day** in the pipeline's Review Apps
 settings. Previews are throwaway; one that has not been visited in a day has
 served its purpose, and re-creating it is a button on the pull request.
 
-**3. Set the seed password.** In the pipeline's *Review app config vars*, set
+**4. Set the seed password.** In the pipeline's *Review app config vars*, set
 ``E2E_USER_PASSWORD``. These variables are injected into every Preview and are
 the only sensible place for a credential — ``app.json`` is in the repository.
 

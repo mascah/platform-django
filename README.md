@@ -78,9 +78,18 @@ add-ons, the configuration variables, and a formation with only the web process
 scaled. Provisioning a prototype is one command against it:
 
 ```bash
-heroku create --manifest
-git push heroku main
+just provision --dry-run   # print what it would do; everything after create bills
+just provision
 ```
+
+No Heroku CLI command reads `app.json` — `heroku create --manifest` reads
+`heroku.yml`, a different format whose setup section is only honoured on the
+container stack. So `bin/provision` applies the manifest itself, in the order
+Heroku constrains: create, buildpacks, add-ons, config, push, scale.
+
+Merging a pull request does not deploy this app. Review apps deploy branches and
+are destroyed on merge; a production app deploys when its pipeline has
+**Automatic deploys** enabled for it, or when `just provision` is run again.
 
 A prototype runs with no key-value store: the cache is in-process, background
 tasks run inline, and mail goes to the dyno log. Graduating is a diff to

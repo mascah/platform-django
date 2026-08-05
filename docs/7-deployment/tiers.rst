@@ -9,6 +9,14 @@ below are the runtime shapes it takes.
 A tier is therefore a diff to ``app.json`` plus a scale command. Choose one
 deliberately from what follows rather than discovering it after a surprise.
 
+``just provision`` applies that manifest to a Heroku app --- creating it if it
+does not exist, then buildpacks, add-ons, configuration, push and formation, in
+the order Heroku constrains. No Heroku CLI command reads ``app.json`` itself
+(``heroku create --manifest`` reads ``heroku.yml``, which only honours its setup
+section on the container stack), so the script is what keeps the manifest
+authoritative. Run ``just provision --dry-run`` first: everything after the
+create step bills to the account owning the app.
+
 .. note::
 
    Prices are Heroku's published monthly rates and are quoted so the tiers can

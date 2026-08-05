@@ -196,6 +196,12 @@ openapi:
 lintmigrations base="origin/main":
     @uv run python manage.py lintmigrations --git-commit-id {{base}} --project-root-path .
 
+# === Deployment ===
+
+# provision: Create and deploy a Heroku app from app.json. Pass --dry-run first.
+provision *args:
+    @./bin/provision {{args}}
+
 # === Documentation ===
 
 # docs: Build documentation.
