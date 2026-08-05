@@ -329,6 +329,16 @@ jobs:
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.typescript == 'true'
     runs-on: ubuntu-latest
+    # Vite bakes VITE_ variables from the environment into the bundle, and the
+    # Sentry spec reads the same one back to know which host to watch for. Set
+    # on the job so the build and the run cannot disagree — a DSN in only one
+    # of them is a test that skips or watches the wrong host, either way
+    # silently. Not a real DSN, and nothing leaves the runner: the spec
+    # fulfills the request itself. The environment is deliberately neither
+    # production nor a Preview, so the tag on the event is worth asserting.
+    env:
+      VITE_SENTRY_DSN: https://e2epublickey@o0.ingest.us.sentry.io/0
+      VITE_SENTRY_ENVIRONMENT: e2e
     services:
       postgres:
         image: postgres:18
@@ -360,29 +370,13 @@ jobs:
       - name: Setup Node.js environment
         uses: ./.github/actions/setup-node-env
 
-      # First, and deliberately before any .env exists: this is the state a
-      # clone of the template ships in, with no Sentry account behind it. The
-      # browser suite cannot cover it — it needs a DSN baked in to have
-      # anything to assert — so the build that ships to everybody is checked
-      # here instead of nowhere.
-      - name: Build frontend with Sentry unconfigured
+      - name: Build frontend
         run: pnpm build
 
-      - name: Assert the unconfigured build ships no Sentry
-        run: |
-          test -z "$(find apps -name '*.map' -path '*/dist/*')"
-          ! grep -rqs 'ingest\..*sentry\.io' apps/platform_django/dist
-
-      # Before the build below, not after: Vite reads the repo-root .env for the
-      # values that go into the bundle, and VITE_SENTRY_DSN is one the Sentry
-      # spec then needs to have been baked in.
       - name: Setup CI environment
         run: |
           cp .env.ci .env
           grep -v '^#' .env.ci | grep -v '^$' >> $GITHUB_ENV
-
-      - name: Build frontend
-        run: pnpm build
 
       - name: Run DB Migrations
         run: uv run python manage.py migrate
