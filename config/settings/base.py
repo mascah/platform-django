@@ -137,7 +137,10 @@ AUTHENTICATION_BACKENDS = [
 # https://docs.djangoproject.com/en/dev/ref/settings/#auth-user-model
 AUTH_USER_MODEL = "users.User"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-redirect-url
-LOGIN_REDIRECT_URL = "/"
+# The application, not the landing page. allauth's RedirectAuthenticatedUserMixin
+# sends an already-signed-in visitor here too, so pointing this at "/" made the
+# landing page's Sign In link a loop back to the landing page.
+LOGIN_REDIRECT_URL = "/app/"
 # https://docs.djangoproject.com/en/dev/ref/settings/#login-url
 LOGIN_URL = "account_login"
 

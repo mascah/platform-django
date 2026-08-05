@@ -19,13 +19,17 @@ setup('authenticate', async ({ page }) => {
   // Submit the form
   await page.getByRole('button', { name: 'Sign In' }).click();
 
-  // Wait for redirect after successful login
-  // Should redirect to home page or wherever LOGIN_REDIRECT_URL points
-  await page.waitForURL('/');
+  // Wait for redirect after successful login, to wherever LOGIN_REDIRECT_URL
+  // points — the application, not the landing page.
+  await page.waitForURL('/app/');
 
-  // Verify we're logged in by checking the page content
-  await expect(page.getByText('This is the way.')).toBeVisible();
+  // Staying on /app/ is itself the assertion: ProtectedRoute sends an
+  // unauthenticated visitor back to /accounts/login/ once it has resolved who
+  // they are. Asserting page copy instead would couple this to whichever route
+  // a project mounts at the application root.
+  await expect(page).toHaveURL('/app/');
 
   // Save the storage state (cookies including session cookie)
-  await page.context().storageState({ path: authFile });
+  const state = await page.context().storageState({ path: authFile });
+  expect(state.cookies.some((cookie) => cookie.name === 'sessionid')).toBe(true);
 });
