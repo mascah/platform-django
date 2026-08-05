@@ -96,14 +96,15 @@ CONTENT_SECURITY_POLICY = {
             "'self'",
             NONCE,
             "https://internal-j.posthog.com",
-            "https://cdnjs.cloudflare.com",
             *_vite_dev_servers,
         ),
         "style-src": (
             "'self'",
             "'unsafe-inline'",
             "https://rsms.me",
-            "https://cdnjs.cloudflare.com",
+            # base.html links the server-rendered stylesheet straight off the
+            # dev server, so this directive needs it too, not only script-src.
+            *_vite_dev_servers,
         ),
         "img-src": ("'self'", "data:"),
         "font-src": ("'self'", "https://rsms.me"),

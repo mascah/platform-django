@@ -1,0 +1,178 @@
+/* The stylesheet for every page Django renders from a template (ADR-0012).
+   It is a CSS-only entry in this application's Vite build, so the server-
+   rendered pages, the application and the landing page all read one Tailwind
+   and one set of tokens. */
+@import '@workspace/ui/globals.css';
+
+/* globals.css scans the TypeScript sources; the classes below are used from
+   Django templates, which Tailwind cannot find on its own. */
+@source '../../../platform_django/templates';
+
+/* Semantic classes, not utility strings copied into each partial. A project
+   changes --primary or --radius in packages/ui/src/styles/globals.css and every
+   surface follows, server-rendered pages included, conflicting with nothing.
+   Keep these thin over the tokens: what a project overrules should be a value,
+   not a template. */
+@layer components {
+  .site-header {
+    @apply border-b border-border;
+  }
+
+  .site-header-inner {
+    @apply mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-4 px-4;
+  }
+
+  .brand {
+    @apply font-semibold tracking-tight no-underline;
+  }
+
+  .site-nav {
+    @apply flex items-center gap-4 text-sm text-muted-foreground;
+  }
+
+  .site-nav a {
+    @apply no-underline hover:text-foreground;
+  }
+
+  .page {
+    @apply mx-auto w-full max-w-3xl px-4 py-10;
+  }
+
+  /* The sign-in column: the page container, narrowed. */
+  .page.entrance {
+    @apply max-w-sm;
+  }
+
+  /* allauth's h1, h2, p and hr elements carry no classes, and Tailwind's
+     preflight leaves them looking like body text. */
+  .page h1 {
+    @apply mb-4 text-2xl font-semibold tracking-tight;
+  }
+
+  .page h2,
+  .page h3 {
+    @apply mb-3 text-lg font-semibold tracking-tight;
+  }
+
+  .page p {
+    @apply mb-4 text-sm text-muted-foreground;
+  }
+
+  .page hr {
+    @apply my-6 border-t border-border;
+  }
+
+  .page a:not([class]) {
+    @apply font-medium underline underline-offset-4;
+  }
+
+  .page ul:not([class]) {
+    @apply mb-4 list-none space-y-2 text-sm;
+  }
+
+  .page code {
+    @apply rounded bg-muted px-1 py-0.5 text-[0.9em];
+  }
+
+  /* allauth's manage pages put two forms one after the other with nothing
+     between them. */
+  .page form {
+    @apply mb-8;
+  }
+
+  .field {
+    @apply mb-4;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium;
+  }
+
+  .field-control {
+    @apply block w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .field-check {
+    @apply flex items-center gap-2;
+  }
+
+  .field-check .field-label {
+    @apply mb-0 font-normal;
+  }
+
+  .field-check-control {
+    @apply size-4 accent-primary;
+  }
+
+  .field-help {
+    @apply mt-1.5 text-xs text-muted-foreground;
+  }
+
+  .field-errors {
+    @apply mt-1.5 list-none space-y-1 text-xs text-destructive;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground no-underline transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  /* allauth puts a form's actions next to each other with nothing between. */
+  .btn + .btn {
+    @apply ml-2;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground;
+  }
+
+  .btn-outline {
+    @apply border border-input bg-background text-foreground;
+  }
+
+  /* text-white, not text-destructive-foreground, because this token set
+     defines the two the same and red on red is unreadable. The shadcn button
+     in packages/ui makes exactly this call, so the two sides still match. */
+  .btn-danger {
+    @apply bg-destructive text-white;
+  }
+
+  .btn-link {
+    @apply bg-transparent px-0 text-foreground underline underline-offset-4;
+  }
+
+  .btn-block {
+    @apply w-full;
+  }
+
+  .alert {
+    @apply mb-4 rounded-md border border-border bg-card px-4 py-3 text-sm;
+  }
+
+  .alert-error {
+    @apply border-destructive/40 text-destructive;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground;
+  }
+
+  .badge-warning {
+    @apply bg-transparent text-destructive ring-1 ring-destructive/40;
+  }
+
+  .card {
+    @apply mb-6 rounded-lg border border-border bg-card p-6;
+  }
+
+  .table {
+    @apply mb-4 w-full border-collapse text-left text-sm;
+  }
+
+  .table th {
+    @apply border-b border-border pb-2 font-medium text-muted-foreground;
+  }
+
+  .table td {
+    @apply border-b border-border py-2 align-middle;
+  }
+}

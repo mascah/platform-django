@@ -3,6 +3,7 @@ With these settings, tests run faster.
 """
 
 from .base import *  # noqa: F403
+from .base import DJANGO_VITE
 from .base import TEMPLATES
 from .base import env
 
@@ -41,6 +42,20 @@ TEMPLATES[0]["OPTIONS"]["debug"] = True  # type: ignore[index]
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#media-url
 MEDIA_URL = "http://media.testserver/"
+
+# django-vite
+# ------------------------------------------------------------------------------
+# Since base.html links the stylesheet Vite builds (ADR-0012), every page
+# Django renders from a template now reaches django-vite. The suite does not
+# build the frontend, and requiring it to would put a Node build in front of
+# every Python test; dev_mode makes the tags construct a URL rather than read a
+# manifest, so a page renders either way.
+#
+# Which leaves the manifest path untested, and it is the one part with no
+# visual signal — so tests/test_server_rendered_styles.py turns dev_mode back
+# off against a manifest of its own.
+for _app_config in DJANGO_VITE.values():
+    _app_config["dev_mode"] = True
 
 # Your stuff...
 # ------------------------------------------------------------------------------

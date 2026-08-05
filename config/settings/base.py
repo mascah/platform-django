@@ -95,8 +95,6 @@ THIRD_PARTY_APPS = [
     # First, so its system check runs against the apps whose migrations it
     # manages rather than before they are loaded.
     "django_linear_migrations",
-    "crispy_forms",
-    "crispy_bootstrap5",
     "allauth",
     "allauth.account",
     "allauth.mfa",
@@ -111,7 +109,6 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "django_migration_linter",
     "django_structlog",
-    "django_tailwind_cli",
 ]
 
 LOCAL_APPS = [
@@ -244,10 +241,6 @@ TEMPLATES = [
 
 # https://docs.djangoproject.com/en/dev/ref/settings/#form-renderer
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
-
-# http://django-crispy-forms.readthedocs.io/en/latest/install.html#template-packs
-CRISPY_TEMPLATE_PACK = "bootstrap5"
-CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 
 # FIXTURES
 # ------------------------------------------------------------------------------
@@ -519,13 +512,11 @@ CONTENT_SECURITY_POLICY = {
             "'self'",
             NONCE,
             "https://internal-j.posthog.com",
-            "https://cdnjs.cloudflare.com",
         ),
         "style-src": (
             "'self'",
             "'unsafe-inline'",
             "https://rsms.me",
-            "https://cdnjs.cloudflare.com",
         ),
         "img-src": ("'self'", "data:"),
         "font-src": ("'self'", "https://rsms.me"),

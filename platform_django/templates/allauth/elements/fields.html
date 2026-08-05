@@ -1,3 +1,34 @@
-{% load crispy_forms_tags %}
+{% load allauth %}
 
-{{ attrs.form|crispy }}
+{% comment %}
+  Draws a whole form through field.html, so a form field has one definition in
+  this project rather than two. allauth passes unlabeled=True on the entrance
+  forms, where its own pack leans on the placeholder instead; the label is kept
+  and shown, because an input whose label vanishes as soon as it has content is
+  not worth the tidier screenshot.
+
+  A widget with no input_type — a Textarea or a Select — is drawn as a text
+  input. Nothing allauth ships has one; a form that does should render the
+  field element itself, with the type spelled out, the way allauth's own
+  recovery-codes page already does.
+{% endcomment %}
+{% for error in attrs.form.non_field_errors %}
+  {% element alert tags="danger" %}
+    {% slot message %}
+      {{ error }}
+    {% endslot %}
+  {% endelement %}
+{% endfor %}
+{% for field in attrs.form.hidden_fields %}{{ field }}{% endfor %}
+{% for field in attrs.form.visible_fields %}
+  {% element field id=field.auto_id name=field.html_name value=field.value type=field.field.widget.input_type|default:"text" required=field.field.required checked=field.value errors=field.errors autocomplete=field.field.widget.attrs.autocomplete %}
+    {% slot label %}
+      {{ field.label }}
+    {% endslot %}
+    {% if field.help_text %}
+      {% slot help_text %}
+        {{ field.help_text }}
+      {% endslot %}
+    {% endif %}
+  {% endelement %}
+{% endfor %}

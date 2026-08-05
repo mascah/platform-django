@@ -1,7 +1,7 @@
 {
   "name": "platform-django",
   "description": "Provisioning a prototype: one command against this manifest. Buildpack order is frontend then Python, because the landing page is served by Django from collected static files. Graduating a tier is a diff to this file plus a scale command.",
-  "stack": "heroku-24",
+  "stack": "heroku-26",
   "buildpacks": [
     {
       "url": "heroku/nodejs"
