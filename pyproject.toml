@@ -228,7 +228,7 @@ dependencies = [
     "djangorestframework==3.17.1",
     "drf-spectacular==0.30.0",
     "flower==2.0.1",
-    "gunicorn==25.1.0",
+    "gunicorn==26.0.0",
     "hiredis==3.4.0",
     "httpx>=0.28.1",
     "Pillow>=12.1.0",
