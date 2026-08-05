@@ -55,13 +55,16 @@ if [[ -z "$MAIN" ]]; then
   exit 1
 fi
 
-WORKTREE_DIR="$MAIN/.claude/worktrees/$NAME"
+# worktrees/ rather than .claude/worktrees/: a worktree is not Claude's, and
+# this script is documented above as runnable from a shell by any harness or
+# none. The directory is gitignored.
+WORKTREE_DIR="$MAIN/worktrees/$NAME"
 BRANCH="worktree-$NAME"
 
 # ---------------------------------------------------------------------------
 # Create the git worktree
 # ---------------------------------------------------------------------------
-mkdir -p "$MAIN/.claude/worktrees"
+mkdir -p "$MAIN/worktrees"
 
 if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH"; then
   git -C "$MAIN" worktree add "$WORKTREE_DIR" "$BRANCH" >&2

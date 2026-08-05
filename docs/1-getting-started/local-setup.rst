@@ -114,7 +114,7 @@ rather than each running a stack, and isolate by database name and Redis index.
 
 This:
 
-- Creates a git worktree at ``.claude/worktrees/feature-branch``
+- Creates a git worktree at ``worktrees/feature-branch``
 - Generates ``.env`` with its own database name, Redis index and application ports
 - Installs Python and frontend dependencies
 

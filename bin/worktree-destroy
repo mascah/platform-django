@@ -5,7 +5,7 @@
 # Sits behind Claude Code's WorktreeRemove hook, and takes the same job from a
 # shell:
 #
-#   bin/worktree-destroy .claude/worktrees/feature-name
+#   bin/worktree-destroy worktrees/feature-name
 #
 # There are no containers to stop and no port registry to release: the worktree
 # shared the machine's backing services, and its .env was the only record of the

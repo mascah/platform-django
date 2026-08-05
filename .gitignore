@@ -295,7 +295,9 @@ apps/*/.astro/
 
 # Claude local settings
 CLAUDE.local.md
-.claude/worktrees/
+
+# Written by bin/worktree-create — a checkout of this repo, inside this repo
+worktrees/
 
 # Written by bin/worktree-create, which does not wait for the install to finish
 .install.log

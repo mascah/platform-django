@@ -126,7 +126,7 @@ Git worktrees allow multiple working directories from a single repository. Each 
 
 This:
 
-- Creates a git worktree at ``.claude/worktrees/feature-branch``
+- Creates a git worktree at ``worktrees/feature-branch``
 - Seeds ``.env`` from the parent checkout, then claims a fresh database name,
   Redis index, ``DJANGO_PORT`` and ``VITE_PORT``
 - Installs Python and frontend dependencies
