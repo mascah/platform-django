@@ -360,7 +360,20 @@ jobs:
       - name: Setup Node.js environment
         uses: ./.github/actions/setup-node-env
 
-      # Before the build, not after: Vite reads the repo-root .env for the
+      # First, and deliberately before any .env exists: this is the state a
+      # clone of the template ships in, with no Sentry account behind it. The
+      # browser suite cannot cover it — it needs a DSN baked in to have
+      # anything to assert — so the build that ships to everybody is checked
+      # here instead of nowhere.
+      - name: Build frontend with Sentry unconfigured
+        run: pnpm build
+
+      - name: Assert the unconfigured build ships no Sentry
+        run: |
+          test -z "$(find apps -name '*.map' -path '*/dist/*')"
+          ! grep -rqs 'ingest\..*sentry\.io' apps/platform_django/dist
+
+      # Before the build below, not after: Vite reads the repo-root .env for the
       # values that go into the bundle, and VITE_SENTRY_DSN is one the Sentry
       # spec then needs to have been baked in.
       - name: Setup CI environment

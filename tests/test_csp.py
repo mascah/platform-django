@@ -8,6 +8,16 @@ a host that is there and has nothing to say.
 
 SENTRY_INGESTION = "https://*.sentry.io"
 
+# Everything the policy allowed before Sentry was added to it. Adding a host is
+# a one-line edit to a tuple, and so is losing one.
+PRE_EXISTING = (
+    "'self'",
+    "https://us.posthog.com",
+    "https://us.i.posthog.com",
+    "https://internal-j.posthog.com",
+    "https://cdnjs.cloudflare.com",
+)
+
 
 def test_the_base_policy_allows_the_sentry_ingestion_host(settings):
     """The one deployments run on, and the one nothing else exercises.
@@ -24,3 +34,11 @@ def test_the_base_policy_allows_the_sentry_ingestion_host(settings):
         SENTRY_INGESTION
         in settings.CONTENT_SECURITY_POLICY["DIRECTIVES"]["connect-src"]
     )
+
+
+def test_adding_sentry_did_not_displace_anything(settings):
+    """PostHog and cdnjs were already there and are blocked just as quietly."""
+    connect_src = settings.CONTENT_SECURITY_POLICY["DIRECTIVES"]["connect-src"]
+
+    for host in PRE_EXISTING:
+        assert host in connect_src
