@@ -236,7 +236,7 @@ dependencies = [
     "Pillow>=12.1.0",
     "posthog>=7.35.4",
     "psycopg[binary]>=3.3.4",
-    "python-slugify==8.0.4",
+    "python-slugify==9.1.2",
     "redis==8.1.0",
     "sentry-sdk>=2.66.1",
     "whitenoise==6.12.0",
