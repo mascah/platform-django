@@ -186,7 +186,7 @@ dev = [
     "coverage==7.16.0",
     "djlint==1.44.2",
     "factory-boy==3.3.3",
-    "django-debug-toolbar==7.1.1",
+    "django-debug-toolbar==8.0.0",
     "django-extensions==4.1",
     "django-coverage-plugin==3.2.2",
     "pytest-django==4.14.0",
